@@ -1,4 +1,4 @@
-**/*.root
-**/*.pdf
+*.root
+*.pdf
 Linux-x86_64/
 tmp/
