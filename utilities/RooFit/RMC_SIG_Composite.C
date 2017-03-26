@@ -9,6 +9,8 @@
 #include "RooFormulaVar.h"
 #include "RooChi2Var.h"
 #include "TCanvas.h"
+#include "TGraph.h"
+#include "TPad.h"
 #include "TAxis.h"
 #include "TH1.h"
 #include "TF1.h"
@@ -75,21 +77,23 @@ void RMC_SIG_Composite(){
   
   /* Nedd to determine exponential variable of rmc distribution */
   Double_t rmcNum=protonNum*muonStopRate*RMCBr*PairCreationProb*VinTProb*ECut*eff;
-  RooRealVar expConst("expConst", "exponential component of RMC", -1, -1., 0.);
+  RooRealVar expConst("expConst", "exponential component of RMC", -0.40, -0.50, -0.34);
+  //RooRealVar expConst("expConst", "exponential component of RMC", -5, -5., -4.);
   RooRealVar a0("a0","a0",0);
   RooRealVar a1("a1","a1",0);
   RooRealVar a2("a2","a2",0);
   RooRealVar a3("a3","a3",0);
   RooRealVar a4("a4","a4",0);
-  RooRealVar gausMean("gausMean", "mean of gaussian", -30,-50.,-30.);
-  RooRealVar gausVar("gausVar", "variance of gaussian", 10, 5., 15.);
+  RooRealVar gausMean("gausMean", "mean of gaussian", -2,-5.,-1.);
+  RooRealVar gausVar("gausVar", "variance of gaussian", 2.9999, 0., 5.);
 
   //RooGenericPdf rmcPdf_tmp("rmc", "a0+a1*x+a2*x*x+a3*x*x*x+a4*x*x*x*x", RooArgSet(x,a0,a1,a2,a3,a4));
   RooRealVar x_fit("x_fit","x_fit",0,upperBound-lowerBound);
-  RooGaussian rmcPdf_tmp("rmc", "rmc gaussian", x_fit, gausMean,gausVar);
+  //RooGaussian rmcPdf_tmp("rmc", "rmc gaussian", x_fit, gausMean,gausVar);
+  RooExponential rmcPdf_tmp("rmc", "rmc exponential", x_fit, expConst);
 
   std::string rootPath="./";
-  std::string rootFile="extrmc_1e7.root";
+  std::string rootFile="extrmc_1e7_second.root";
 
   TFile *f = TFile::Open(TString(rootPath+rootFile));
   TTree *t = (TTree*)f->Get("trdata");
@@ -97,22 +101,30 @@ void RMC_SIG_Composite(){
 
   Float_t Pairep_genTrE;
   t->SetBranchAddress("Pairep_genTrE",&Pairep_genTrE);
-  for (Int_t i_evt=0; i_evt<100000; i_evt++){
+
+  TH1F* rmc_hist2 = new TH1F("rmc_hist2","rmc_hist2", BinNumber, lowerBound, upperBound);
+  for (Int_t i_evt=0; i_evt<1000000; i_evt++){
     t->GetEntry(i_evt);
     if (Pairep_genTrE>lowerBound && Pairep_genTrE<upperBound){
       rmc_hist->Fill(Pairep_genTrE-lowerBound);
+      rmc_hist2->Fill(Pairep_genTrE);
     }
   }
 
   RooRealVar x_rmc("x_rmc","x_rmc",0,upperBound-lowerBound);
   RooDataSet rmc_data("rmc","rmc", x_rmc, Import(*rmc_hist));
-  rmcPdf_tmp.fitTo(rmc_data);
+  rmcPdf_tmp.fitTo(rmc_data, Range(0,upperBound-lowerBound));
 
-  RooRealVar gausMeanFit("gausMeanFit", "gausMeanFit",gausMean.getValV()+lowerBound);
-  RooRealVar gausVarFit("gausVarFit", "gausVarFit",gausVar.getValV());
-  RooGaussian rmcPdf("rmc", "rmc p.d.f.", x, gausMeanFit, gausVarFit);
-  
-  std::cout << "RMC Gaus Mean: " <<gausMean.getValV() << "  RMC Gaus Variance: " << gausVarFit.getValV() << std::endl;
+  //RooRealVar gausMeanFit("gausMeanFit", "gausMeanFit",gausMean.getValV()+lowerBound);
+  //RooRealVar gausVarFit("gausVarFit", "gausVarFit",gausVar.getValV());
+  //RooGaussian rmcPdf("rmc", "rmc p.d.f.", x, gausMeanFit, gausVarFit);
+
+  //RooRealVar expConstFit("expConstFit", "expConstFit",expConst.getValV());
+  //RooExponential rmcPdf("rmc", "rmc p.d.f.", x, expConst);
+  RooGenericPdf rmcPdf("rmc","rmc","exp((x-lowerBoundVal)*expConst)",RooArgSet(x,lowerBoundVal,expConst));    
+
+  //std::cout << "RMC Gaus Mean: " <<gausMean.getValV() << "  RMC Gaus Variance: " << gausVarFit.getValV() << std::endl;
+  expConst.Print();
   std::cout << "Number of Signal: " << sigNum << "  Number of RMC: " << rmcNum << std::endl;
 
 
@@ -128,21 +140,44 @@ void RMC_SIG_Composite(){
 
   /* Make Composite Model */
   RooAddPdf modelPdf("model", "model", RooArgList(sigPdf, rmcPdf),sigFrac);
-  RooDataSet *modelData=modelPdf.generate(x, (sigNum+rmcNum)/1000);
+  RooDataSet *modelData=modelPdf.generate(x, (sigNum+rmcNum));
    
   /* Plot Composite Model */
-  
-  RooPlot* modelFrame = x.frame(Title("Composite PDF"));
+  RooPlot* modelFrame = x.frame(Title(""));
+  modelFrame->SetTitle("");
   modelData->plotOn(modelFrame,Binning(bins));
   modelPdf.plotOn(modelFrame, Components(rmcPdf), LineStyle(9), LineColor(kBlue));
   modelPdf.plotOn(modelFrame, LineStyle(kDashed), LineColor(kRed));
   //modelPdf.plotOn(modelFrame, Components(sigPdf), LineStyle(9), LineColor(kBlack));
 
-  TCanvas* c = new TCanvas("Composite_Model","Composite_Model",800,400);  
-  c->Divide(2);
-  c->cd(1) ; gPad->SetLeftMargin(0.15) ; modelFrame->GetYaxis()->SetTitleOffset(1.6) ; modelFrame->Draw() ;    
-  //c->cd(2) ; gPad->SetLeftMargin(0.15) ; rmcFrame->GetYaxis()->SetTitleOffset(1.6) ; rmcFrame->Draw() ;
-  c->cd(2) ; rmc_hist->Draw();
-  
+  TCanvas* c1 = new TCanvas("Composite_Model","Composite_Model",600,600);  
+  c1->cd() ; 
+  gPad->SetLeftMargin(0.15) ; 
+  modelFrame->GetYaxis()->SetTitleOffset(1.8) ; 
+  modelFrame->GetXaxis()->SetTitle("E_{e^{+}} (MeV)");
+  modelFrame->Draw() ;    
 
+  TCanvas* c2 = new TCanvas("Composite_Model_witHistogram","Composite Model with Histogram",600,600); 
+  c2->cd() ;
+
+  RooPlot* modelFrame2 = x.frame(Title("Composite PDF"));  
+  RooDataSet *modelData2=modelPdf.generate(x, 15787);
+  modelData2->plotOn(modelFrame2, Components(rmcPdf), LineStyle(9), LineColor(kBlue),Name("rmcGr"),Binning(bins));
+  TGraph* rmc_graph = (TGraph*)modelFrame2->getObject( modelFrame2->numItems() - 1  );
+
+  TPad *pad1_1 = new TPad("pad1","",0,0,1,1);
+  TPad *pad1_2 = new TPad("pad2","",0,0,1,1);
+  pad1_1->SetFillStyle(4000);
+  pad1_1->SetFrameFillStyle(0);
+  pad1_2->SetFillStyle(4000);
+  pad1_2->SetFrameFillStyle(0);
+
+  pad1_1->Draw();
+  pad1_1->cd();
+  rmc_graph->GetXaxis()->SetRangeUser(lowerBound,upperBound);
+  rmc_graph->GetYaxis()->SetRangeUser(0,3070);
+  rmc_graph->Draw();
+  pad1_2->Draw();
+  pad1_2->cd();  
+  rmc_hist2->Draw();
 }
