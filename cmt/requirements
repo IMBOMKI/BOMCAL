@@ -1,0 +1,17 @@
+package BOMKI_analysis
+
+use oaEvent
+use oaGeomInfo
+use oaChanInfo
+
+macro BOMKI_analysis_linkopts " -L$(PACKAGENAMEROOT)/$(BOMKI_analysis_tag) "
+
+path_remove LD_LIBRARY_PATH "$(PACKAGENAME)"
+path_prepend LD_LIBRARY_PATH "$(PACKAGENAMEROOT)/$(BOMKI_analysis_tag)"
+
+path_remove PATH "$(PACKAGENAMEROOT)"
+path_prepend PATH "$(PACKAGENAMEROOT)/$(BOMKI_analysis_tag)"
+
+application SIGInfo       ../app/SIGInfo.cxx
+application BunchInfor       ../app/BunchInfo.cxx
+

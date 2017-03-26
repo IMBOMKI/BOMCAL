@@ -1,0 +1,27 @@
+#include "RooRealVar.h"
+#include "RooDataSet.h"
+#include "RooLandau.h"
+#include "RooExponential.h"
+#include "RooAddPdf.h"
+#include "TCanvas.h"
+#include "TAxis.h"
+#include "RooPlot.h"
+#include <iostream>
+#include <sstream>
+
+void RMC_SIG_Composite(){
+  // SIGNAL component
+
+  RooRealVar sigMean("sigMean","mean of Landau",0.000447);
+  RooRealVar sigVariance("sigVariance","variance of sigma", 0.000112);
+
+  // RMC component
+
+  std::string rootPath="/home/bomki/ICEDUST/BOMKI_analysis/v999/rootfile/";
+  std::string rootFile="extrmc_1e7.root";
+
+  TFile *f = TFile::Open(TString(rootPath+rootFile));
+  TTree *t = (TTree*)f->Get("trdata");
+
+
+}
