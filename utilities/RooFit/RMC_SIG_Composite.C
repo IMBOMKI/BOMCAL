@@ -8,6 +8,9 @@
 #include "RooGenericPdf.h"
 #include "RooFormulaVar.h"
 #include "RooChi2Var.h"
+#include "RooAbsArg.h"
+#include "RooFitResult.h"
+#include "RooFit.h"
 #include "TCanvas.h"
 #include "TGraph.h"
 #include "TPad.h"
@@ -21,8 +24,17 @@
 #include <iostream>
 #include <sstream>
 #include <TMath.h>
+#include "RooProdPdf.h"
+#include "RooWorkspace.h"
+#include "RooStats/ProfileLikelihoodCalculator.h"
+#include "RooStats/HypoTestResult.h"
+
+void DoHypothesisTest(RooWorkspace*);
+void MakePlots(RooWorkspace*);
+
 
 using namespace RooFit;
+using namespace RooStats;
 
 void RMC_SIG_Composite(){
   
@@ -31,7 +43,7 @@ void RMC_SIG_Composite(){
   ///////////////////
 
   /* branching ratios */
-  Double_t SIGBr=1.7*TMath::Power(10,-12); // Set to current limit on mu->e+ conversion
+  Double_t SIGBr=3.2*TMath::Power(10,-13); // Set to current limit on mu->e+ conversion
   Double_t RMCBr=6.82*TMath::Power(10,-7);
 
   /* common variables */
@@ -47,9 +59,11 @@ void RMC_SIG_Composite(){
   Double_t capturingRate=0.61; // capturing rate of Aluminum
 
   /* RMC specific vairables */
-  Double_t PairCreationProb=0.97;
+  Double_t PairCreationProb=0.96;
   Double_t VinTProb=0.0058; // Probability that vertex is in target
   Double_t ECut=0.016;      // Probability that positron has energy hihgher than 90.30
+
+ 
 
   ///////////////////////////
   // Set SIG and RMC Model //
@@ -76,21 +90,21 @@ void RMC_SIG_Composite(){
   // RMC component
   
   /* Nedd to determine exponential variable of rmc distribution */
-  Double_t rmcNum=protonNum*muonStopRate*RMCBr*PairCreationProb*VinTProb*ECut*eff;
+  Double_t rmcNum=protonNum*muonStopRate*RMCBr*PairCreationProb*VinTProb*ECut*eff*2; //factor 2 from internal conversion
   RooRealVar expConst("expConst", "exponential component of RMC", -0.40, -0.50, -0.34);
-  //RooRealVar expConst("expConst", "exponential component of RMC", -5, -5., -4.);
-  RooRealVar a0("a0","a0",0);
-  RooRealVar a1("a1","a1",0);
-  RooRealVar a2("a2","a2",0);
-  RooRealVar a3("a3","a3",0);
-  RooRealVar a4("a4","a4",0);
-  RooRealVar gausMean("gausMean", "mean of gaussian", -2,-5.,-1.);
-  RooRealVar gausVar("gausVar", "variance of gaussian", 2.9999, 0., 5.);
+  RooRealVar linConst("linConst", "linear compenent of RMC", 0.1, 0.1 , 0.2);
 
-  //RooGenericPdf rmcPdf_tmp("rmc", "a0+a1*x+a2*x*x+a3*x*x*x+a4*x*x*x*x", RooArgSet(x,a0,a1,a2,a3,a4));
+  //RooRealVar a0("a0","a0",0);
+  //RooRealVar a1("a1","a1",0);
+  //RooRealVar a2("a2","a2",0);
+  //RooRealVar a3("a3","a3",0);
+  //RooRealVar a4("a4","a4",0);
+  //RooRealVar gausMean("gausMean", "mean of gaussian", -2,-5.,-1.);
+  //RooRealVar gausVar("gausVar", "variance of gaussian", 2.9999, 0., 5.);
+
   RooRealVar x_fit("x_fit","x_fit",0,upperBound-lowerBound);
-  //RooGaussian rmcPdf_tmp("rmc", "rmc gaussian", x_fit, gausMean,gausVar);
   RooExponential rmcPdf_tmp("rmc", "rmc exponential", x_fit, expConst);
+  //RooGenericPdf rmcPdf_tmp("rmc", "exp(x_fit*expConst)/(x_fit+linConst)", RooArgSet(x_fit,expConst,linConst));
 
   std::string rootPath="./";
   std::string rootFile="extrmc_1e7_second.root";
@@ -119,20 +133,16 @@ void RMC_SIG_Composite(){
   //RooRealVar gausVarFit("gausVarFit", "gausVarFit",gausVar.getValV());
   //RooGaussian rmcPdf("rmc", "rmc p.d.f.", x, gausMeanFit, gausVarFit);
 
-  //RooRealVar expConstFit("expConstFit", "expConstFit",expConst.getValV());
-  //RooExponential rmcPdf("rmc", "rmc p.d.f.", x, expConst);
   RooGenericPdf rmcPdf("rmc","rmc","exp((x-lowerBoundVal)*expConst)",RooArgSet(x,lowerBoundVal,expConst));    
+//RooGenericPdf rmcPdf("rmc","rmc","exp((x-lowerBoundVal)*expConst)/((x-lowerBoundVal)+linConst)",RooArgSet(x,lowerBoundVal,expConst,linConst));
 
   //std::cout << "RMC Gaus Mean: " <<gausMean.getValV() << "  RMC Gaus Variance: " << gausVarFit.getValV() << std::endl;
-  expConst.Print();
-  std::cout << "Number of Signal: " << sigNum << "  Number of RMC: " << rmcNum << std::endl;
-
 
   /////////////////////////
   // Set Composite Model //
   /////////////////////////
   
-  RooRealVar sigFrac("rmcFrac", "Fraction of RMC", Double_t(sigNum)/(sigNum+rmcNum));
+  RooRealVar sigFrac("sigFrac", "Fraction of RMC", Double_t(sigNum)/(sigNum+rmcNum),0.,1.);
   RooRealVar rmcFrac("rmcFrac", "Fraction of RMC", Double_t(rmcNum)/(sigNum+rmcNum));
 
   /* Binning */
@@ -157,6 +167,23 @@ void RMC_SIG_Composite(){
   modelFrame->GetXaxis()->SetTitle("E_{e^{+}} (MeV)");
   modelFrame->Draw() ;    
 
+
+  RooAbsReal* rmcInt = rmcPdf.createIntegral(x,NormSet(x),Range("ECut"));
+  RooAbsReal* sigInt = sigPdf.createIntegral(x,NormSet(x),Range("ECut"));
+  std::cout << "-------------------------------------------------" << std::endl;
+  expConst.Print();
+  std::cout << "Number of Signal: " << sigNum << "  Number of RMC: " << rmcNum << std::endl;
+  x.setRange("ECut",91.7,92.0);
+  std::cout << "Number of Signal in ECut Boundary " << sigInt->getValV()*sigNum << std::endl;
+  std::cout << "Number of RMC    in ECut Boundary " << rmcInt->getValV()*rmcNum << std::endl;
+  std::cout << "-------------------------------------------------\n\n" << std::endl;
+
+
+  /////////////////////////////////
+  // Draw MC Data & Fit Function //
+  /////////////////////////////////
+
+  
   TCanvas* c2 = new TCanvas("Composite_Model_witHistogram","Composite Model with Histogram",600,600); 
   c2->cd() ;
 
@@ -180,4 +207,49 @@ void RMC_SIG_Composite(){
   pad1_2->Draw();
   pad1_2->cd();  
   rmc_hist2->Draw();
+
+  ///////////////////////////////
+  // RooStats Likelihood Method //
+  ///////////////////////////////
+
+  /* Set up Model with ProfileLikelihoodCalculator */
+  
+  ModelConfig model;
+  RooWorkspace* wks = new RooWorkspace("wks");
+  wks->import(modelPdf);
+  
+  wks->import(*modelData, Rename("data"));
+  model.SetWorkspace(*wks);
+  model.SetPdf("model");
+  
+  
+  ProfileLikelihoodCalculator plc;
+  plc.SetData(*(wks->data("data")));
+  RooRealVar* fsig = wks->var("sigFrac");
+  RooArgSet poi(*fsig);
+  RooArgSet *nullParams = (RooArgSet*)poi.snapshot();
+  nullParams->setRealValue("sigFrac",0);
+
+  plc.SetModel(model);
+  plc.SetNullParameters(*nullParams);
+  //plc.SetNullParameters(*nullParams);                                            
+  plc.SetModel(model);
+  // NOTE: using snapshot will import nullparams                                   
+  // in the WS and merge with existing "mu"                                        
+  // model.SetSnapshot(*nullParams);                                               
+  
+  //use instead setNuisanceParameters                                              
+  plc.SetNullParameters( *nullParams);
+  
+  // We get a HypoTestResult out of the calculator, and we can query it.           
+  HypoTestResult* htr = plc.GetHypoTest();
+  cout << "-------------------------------------------------" << endl;
+  cout << "The p-value for the null is " << htr->NullPValue() << endl;
+  cout << "Corresponding to a significance of " << htr->Significance() << endl;
+  cout << "-------------------------------------------------\n\n" << endl;
+    
+  //MakePlots(wks);
+  delete wks;  
+  
+ 
 }
