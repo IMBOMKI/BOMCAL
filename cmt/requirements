@@ -13,5 +13,5 @@ path_remove PATH "$(PACKAGENAMEROOT)"
 path_prepend PATH "$(PACKAGENAMEROOT)/$(BOMKI_analysis_tag)"
 
 application SIGInfo       ../app/SIGInfo.cxx
-application BunchInfor       ../app/BunchInfo.cxx
+application BunchInfo       ../app/BunchInfo.cxx
 
