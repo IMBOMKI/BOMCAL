@@ -21,7 +21,7 @@ Double_t GetDist(Double_t *DIOenergy, Double_t *par);
 
 void helixGenerator(bool AlorTi, string fileName){
 
-  Int_t eventNum=10000;
+  Int_t eventNum=100;
 
   Bool_t fUseAl=AlorTi; // 0 is for Ti
   Double_t fMassMu=105.66;
@@ -39,7 +39,8 @@ void helixGenerator(bool AlorTi, string fileName){
     a8=9.16327E-20;
     fBindingE=0.4754;
     fMassN=23273.122;
-    outputDir=/sps/hep/comet/beomki/workspace/project/toy_helix/Al27/;
+    //outputDir=/sps/hep/comet/beomki/workspace/project/toy_helix/Al27/;
+    outputDir="/home/bomki/ICEDUST/BOMKI_analysis/v999/utilities/ToyHelix/";
   }
   if (fUseAl==0){   // Ti48
     fMinDIOE=96.88; // 98.88 MeV - 2 MeV
@@ -49,7 +50,8 @@ void helixGenerator(bool AlorTi, string fileName){
     a8=8.193E-19;
     fBindingE=1.3616;
     fMassN=44646.861;
-    outputDir=/sps/hep/comet/beomki/workspace/project/toy_helix/Ti48/;
+    //outputDir=/sps/hep/comet/beomki/workspace/project/toy_helix/;
+    outputDir="/home/bomki/ICEDUST/BOMKI_analysis/v999/utilities/ToyHelix/";
   }
 
 
@@ -192,7 +194,7 @@ void helixGenerator(bool AlorTi, string fileName){
 
 
       
-      if (z_pos[i]>1 || z_pos[i]<-1) break;
+      if (z_pos[i]>5 || z_pos[i]<-5) break;
     }
       
       
