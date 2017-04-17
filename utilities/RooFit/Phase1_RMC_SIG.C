@@ -51,8 +51,8 @@ void Phase1_RMC_SIG(){
   Double_t protonNum=3.2*TMath::Power(10,19);
   Double_t muonStopRate=4.7*TMath::Power(10,-4);
   Double_t lowerBound = 90.30;
-  Double_t upperBound = 100.30;
-  Int_t BinNumber=20;
+  Double_t upperBound = 95.80;
+  Int_t BinNumber=11;
 
   /* SIG specific variables */
   Double_t sigE=92.29;
@@ -75,15 +75,10 @@ void Phase1_RMC_SIG(){
 
   /* Landau distribuition determined by checking smeard energy from muon stopping target */
   Double_t sigNum=protonNum*muonStopRate*capturingRate*SIGBr*eff;
-  for (Int_t i=0; i<10 ; i++){
-    std::cout << sigNum << std::endl;
-  }
-
-
   RooRealVar landauMean("landauMean","mean of Landau",0.447);
   RooRealVar landauVar("landauVar","variance of Landau", 0.112);  
-  RooRealVar sigEVal("sigEVal","signal energy", 92.29);
-  RooRealVar lowerBoundVal("lowerBoundVal","lowerBoundVal", 90.30);
+  RooRealVar sigEVal("sigEVal","signal energy", sigE);
+  RooRealVar lowerBoundVal("lowerBoundVal","lowerBoundVal", lowerBound);
 
   RooGenericPdf sigPdf("sig","sig","Landau(-x+sigEVal,landauMean,landauVar)",RooArgSet(x,sigEVal, lowerBoundVal,landauMean,landauVar));  
 
@@ -95,7 +90,7 @@ void Phase1_RMC_SIG(){
   
   /* Nedd to determine exponential variable of rmc distribution */
   Double_t rmcNum=protonNum*muonStopRate*RMCBr*PairCreationProb*VinTProb*ECut*eff;//*2; //factor 2 from internal conversion
-  RooRealVar expConst("expConst", "exponential component of RMC", -0.4, -0.50, -0.34);
+  RooRealVar expConst("expConst", "exponential component of RMC", -0.37, -0.39, -0.35);
   //RooRealVar expConst("expConst", "exponential component of RMC", -0.45, -0.60, -0.34);
   RooRealVar linConst("linConst", "linear compenent of RMC", 0.1, 0.1 , 0.2);
 
@@ -193,7 +188,7 @@ void Phase1_RMC_SIG(){
   c2->cd() ;
 
   RooPlot* modelFrame2 = x.frame(Title("Composite PDF"));  
-  RooDataSet *modelData2=modelPdf.generate(x, 15787);
+  RooDataSet *modelData2=modelPdf.generate(x, rmc_hist2->GetEntries());
   modelData2->plotOn(modelFrame2, Components(rmcPdf), LineStyle(9), LineColor(kBlue),Name("rmcGr"),Binning(bins));
   TGraph* rmc_graph = (TGraph*)modelFrame2->getObject( modelFrame2->numItems() - 1  );
 
@@ -207,7 +202,7 @@ void Phase1_RMC_SIG(){
   pad1_1->Draw();
   pad1_1->cd();
   rmc_graph->GetXaxis()->SetRangeUser(lowerBound,upperBound);
-  rmc_graph->GetYaxis()->SetRangeUser(0,3070);
+  rmc_graph->GetYaxis()->SetRangeUser(290,3060);
   rmc_graph->Draw();
   pad1_2->Draw();
   pad1_2->cd();  

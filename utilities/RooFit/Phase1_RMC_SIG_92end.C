@@ -3,6 +3,7 @@
 #include "RooLandau.h"
 #include "RooExponential.h"
 #include "RooGaussian.h"
+#include "RooPolynomial.h"
 #include "RooAddPdf.h"
 #include "RooBinning.h"
 #include "RooGenericPdf.h"
@@ -51,8 +52,10 @@ void Phase1_RMC_SIG_92end(){
   Double_t protonNum=3.2*TMath::Power(10,19);
   Double_t muonStopRate=4.7*TMath::Power(10,-4);
   Double_t lowerBound = 87.0;
+  //Double_t lowerBound = 87.5;
   Double_t upperBound = 92.5;
-  Int_t BinNumber=11;
+  Int_t BinNumber=11;  
+  //Int_t BinNumber=10;
 
   /* SIG specific variables */
   Double_t sigE=92.29;
@@ -78,34 +81,29 @@ void Phase1_RMC_SIG_92end(){
 
   RooRealVar landauMean("landauMean","mean of Landau",0.447);
   RooRealVar landauVar("landauVar","variance of Landau", 0.112);  
-  RooRealVar sigEVal("sigEVal","signal energy", 92.29);
+  RooRealVar sigEVal("sigEVal","signal energy", sigE);
   RooRealVar lowerBoundVal("lowerBoundVal","lowerBoundVal", lowerBound);
 
   RooGenericPdf sigPdf("sig","sig","Landau(-x+sigEVal,landauMean,landauVar)",RooArgSet(x,sigEVal, lowerBoundVal,landauMean,landauVar));  
 
-  //TF1 *landau = new TF1("landau","92.29-TMath::Landau(x,[0],[1])",0,100);
-  //landau->SetParameters(0.447,0.112);
-  //RooAbsReal *sigPdf=bindFunction(landau,x);
-
   // RMC component
-  
-  /* Nedd to determine exponential variable of rmc distribution */
+  /* Need to determine exponential variable of rmc distribution */
   Double_t rmcNum=protonNum*muonStopRate*RMCBr*PairCreationProb*VinTProb*ECut*eff;//*2; //factor 2 from internal conversion
-  RooRealVar expConst("expConst", "exponential component of RMC", -1.5, -2.00, -1.3);
-  //RooRealVar expConst("expConst", "exponential component of RMC", -0.45, -0.60, -0.34);
-  RooRealVar linConst("linConst", "linear compenent of RMC", 0.1, 0.1 , 0.2);
-
-  //RooRealVar a0("a0","a0",0);
-  //RooRealVar a1("a1","a1",0);
-  //RooRealVar a2("a2","a2",0);
-  //RooRealVar a3("a3","a3",0);
-  //RooRealVar a4("a4","a4",0);
-  //RooRealVar gausMean("gausMean", "mean of gaussian", -2,-5.,-1.);
-  //RooRealVar gausVar("gausVar", "variance of gaussian", 2.9999, 0., 5.);
-
+  RooRealVar expConst("expConst", "exponential component of RMC", -1.3, -1.50, -1.1);
   RooRealVar x_fit("x_fit","x_fit",0,upperBound-lowerBound);
+  RooRealVar x0("x0","x0",4.,2.,6.);
+  RooRealVar C("C","C",5.,3.,10.);
+  RooRealVar a0("a0","a0",0., 0., 100.);      
+  RooRealVar a1("a1","a1",-10,-100.,0.);        
+  RooRealVar a2("a2","a2",1.);
   RooExponential rmcPdf_tmp("rmc", "rmc exponential", x_fit, expConst);
-  //RooGenericPdf rmcPdf_tmp("rmc", "exp(x_fit*expConst)/(x_fit+linConst)", RooArgSet(x_fit,expConst,linConst));
+  //RooGenericPdf rmcPdf_tmp("rmc", "-(x<x0)*pow((x_fit-x0),3)", RooArgSet(x_fit,x0));
+  //RooPolynomial rmcPdf_tmp("rmc","rmc polynoimial", x_fit, RooArgList(a0,a1,a2),0);
+
+  /////////// Make A Function to be bound /////////
+  //TF1 *bf = new TF1("bf",(x<x0)*pow((x-x0),2),
+
+
 
   std::string rootPath="./";
   std::string rootFile="extrmc_1e7_92end.root";
@@ -118,7 +116,7 @@ void Phase1_RMC_SIG_92end(){
   t->SetBranchAddress("Pairep_genTrE",&Pairep_genTrE);
 
   TH1F* rmc_hist2 = new TH1F("rmc_hist2","rmc_hist2", BinNumber, lowerBound, upperBound);
-  for (Int_t i_evt=0; i_evt<100000; i_evt++){
+  for (Int_t i_evt=0; i_evt<2000000; i_evt++){
     t->GetEntry(i_evt);
     if (Pairep_genTrE>lowerBound && Pairep_genTrE<upperBound){
       rmc_hist->Fill(Pairep_genTrE-lowerBound);
@@ -133,14 +131,9 @@ void Phase1_RMC_SIG_92end(){
   RooDataSet rmc_data("rmc","rmc", x_rmc, Import(*rmc_hist));
   rmcPdf_tmp.fitTo(rmc_data, Range(0,upperBound-lowerBound));
 
-  //RooRealVar gausMeanFit("gausMeanFit", "gausMeanFit",gausMean.getValV()+lowerBound);
-  //RooRealVar gausVarFit("gausVarFit", "gausVarFit",gausVar.getValV());
-  //RooGaussian rmcPdf("rmc", "rmc p.d.f.", x, gausMeanFit, gausVarFit);
-
   RooGenericPdf rmcPdf("rmc","rmc","exp((x-lowerBoundVal)*expConst)",RooArgSet(x,lowerBoundVal,expConst));    
-//RooGenericPdf rmcPdf("rmc","rmc","exp((x-lowerBoundVal)*expConst)/((x-lowerBoundVal)+linConst)",RooArgSet(x,lowerBoundVal,expConst,linConst));
-
-  //std::cout << "RMC Gaus Mean: " <<gausMean.getValV() << "  RMC Gaus Variance: " << gausVarFit.getValV() << std::endl;
+  //RooGenericPdf rmcPdf("rmc","rmc", "-(x<(lowerBoundVal+x0))*pow((x-lowerBoundVal-x0),3)", RooArgSet(x,lowerBoundVal,x0));
+  //RooPolynomial rmcPdf("rmc", "rmc polynomial",x, RooArgSet(a0,a1,a2),0);
 
   /////////////////////////
   // Set Composite Model //
@@ -229,7 +222,9 @@ void Phase1_RMC_SIG_92end(){
   pad1_1->Draw();
   pad1_1->cd();
   rmc_graph->GetXaxis()->SetRangeUser(lowerBound,upperBound);
-  rmc_graph->GetYaxis()->SetRangeUser(0,164);
+  //rmc_graph->GetYaxis()->SetRangeUser(0,164);
+  //rmc_graph->GetYaxis()->SetRangeUser(0,1558); //10^6
+  rmc_graph->GetYaxis()->SetRangeUser(0,3100); //20^6
   rmc_graph->Draw();
   pad1_2->Draw();
   pad1_2->cd();  
@@ -240,8 +235,8 @@ void Phase1_RMC_SIG_92end(){
   ///////////////////////////////
 
   /* Set up Model with ProfileLikelihoodCalculator */
-  /*
   
+ 
   ModelConfig model;
   RooWorkspace* wks = new RooWorkspace("wks");
   wks->import(modelPdf);
@@ -278,6 +273,6 @@ void Phase1_RMC_SIG_92end(){
     
   //MakePlots(wks);
   delete wks;  
-  */  
+  
   
 }
