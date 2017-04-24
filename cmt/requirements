@@ -4,14 +4,34 @@ use oaEvent
 use oaGeomInfo
 use oaChanInfo
 
-macro BOMKI_analysis_linkopts " -L$(PACKAGENAMEROOT)/$(BOMKI_analysis_tag) "
+# Build methods to include.
+document version version *.cxx ../dict/*.cxx
+document register register
+document rootcint dictionary *_LinkDef.h
+document doxygen doxygen -group=documentation *.cxx *.hxx ../doc/*.dox	
 
-path_remove LD_LIBRARY_PATH "$(PACKAGENAME)"
-path_prepend LD_LIBRARY_PATH "$(PACKAGENAMEROOT)/$(BOMKI_analysis_tag)"
+# The library to build
+library BOMKI_analysis *.cxx ../dict/*.cxx
+include_dirs $(BOMKI_analysis)/src/
+macro BOMKI_analysis_linkopts " -L$(BOMKI_ANALYSISROOT)/$(BOMKI_analysis_tag) -lBOMKI_analysis "
+macro install_dir $(BOMKI_ANALYSISROOT)/$(BOMKI_analysis_tag)
 
-path_remove PATH "$(PACKAGENAMEROOT)"
-path_prepend PATH "$(PACKAGENAMEROOT)/$(BOMKI_analysis_tag)"
+path_remove PATH "$(BOMKI_ANALYSIS)"
+path_prepend PATH "$(BOMKI_ANALYSISROOT)/$(BOMKI_analysis_tag)"
+path_remove LD_LIBRARY_PATH "$(BOMKI_ANALYSISROOT)"
+path_prepend LD_LIBRARY_PATH "$(BOMKI_ANALYSISROOT)/$(BOMKI_analysis_tag)"
+path_prepend LD_LIBRARY_PATH "../Linux-x86_64"
 
 application SIGInfo       ../app/SIGInfo.cxx
 application BunchInfo       ../app/BunchInfo.cxx
+application RunMCTrigger ../app/RunMCTrigger.cxx
 
+macro register_dependencies version
+#macro rootcint_dependencies register
+macro dictionary_dependencies register
+macro BOMKI_analysis_dependencies version
+macro BOMKI_analysis_dependencies register
+macro BOMKI_analysis_dependencies dictionary
+#macro BOMKI_analysis_dependencies rootcint
+macro RunMCTrigger_dependencies BOMKI_analysis
+#macro RunHoughTrackFinder_dependencies ReconTrackFinding
