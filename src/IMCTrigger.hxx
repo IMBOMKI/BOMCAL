@@ -2,6 +2,7 @@
 #define TMCTrigger_hxx_seen
 
 #include <vector>
+#include <map>
 
 #include <TObject.h>
 #include <TVector3.h>
@@ -10,6 +11,7 @@
 #include <IAlgorithm.hxx>
 #include <ICOMETLog.hxx>
 
+#include <IG4Trajectory.hxx>
 #include <IG4VHit.hxx>
 #include <IHandle.hxx>
 #include <ICOMETEvent.hxx>
@@ -18,9 +20,24 @@
 #include "TGeoNode.h"
 
 
+
 class IMCTrigger{
 private:
-  
+
+  // Low level Information
+  std::map <int, double> fTime; 
+  std::map <int, int>    fIndex;      // Segment Index: 1-64
+  std::map <int, int>    fScint;      // 1 for Scint, 0 for Cherenkov
+  std::map <int, int>    fModule;     // 1 for Down, 0 for Up
+
+  // High level Information (Left/Right vector for Scint/Cherenkov)
+  std::vector < std::pair< std::vector< int >, std::vector< int > > > fDSTimeCluster; // int->key Value
+  std::vector < std::pair< std::vector< int >, std::vector< int > > > fUSTimeCluster;
+
+  //
+  int fCTHSegNum;
+  double fStartT;
+  double fEndT;
 
 public:
   IMCTrigger(const char*name, const char* title);
@@ -29,14 +46,22 @@ public:
   /// called at the begin of run or else (should not be in event-by-event)
   int  Init();
 
+  /// Get Volume node
   TGeoNode* GetNode(TVector3 position);
 
-  /// Calculate Number of Photons
+  /// Calculate number of photons in Cherenkov detector
   int GetPhotonNumber(int pdgNum, double ene, double trLen);
+
+  // Make map for CTH hits' index & time
+  void MakeCTHMap(COMET::IHandle<COMET::IG4HitContainer> & cthhits, COMET::IHandle<COMET::IG4TrajectoryContainer> trajectories);
+
+  void MakeTimeCluster(int Module);
+  void PrintTimeCluster();
+
+  void Clear();
 
   /// called at the end of run or else (should not be in event-by-event)
   int  Finish();
 
-  COMET::IG4HitContainer* MakeCTHHitSelection(COMET::IHandle<COMET::IG4HitContainer> & cthhits);
 };
 #endif

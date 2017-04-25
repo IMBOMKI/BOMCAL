@@ -8,8 +8,12 @@
 #include <IG4Trajectory.hxx>
 
 #include <IGeometryId.hxx>
+#include <IGeometryDatabase.hxx>
 #include <IGeomInfo.hxx>
+#include <IGeomIdManager.hxx>
 #include <IChannelId.hxx>
+#include <ICTHGeomId.hxx>
+#include <ICTHChannelId.hxx>
 #include <IDetectorSolenoidGeom.hxx>
 
 #include <memory>
@@ -595,13 +599,22 @@ public:
           TGeoNode* volume = GetNode(hitPos);
           TString geoName = TString(volume->GetName());                     
 
+
+	  COMET::IGeometryId CTHId;
+	  COMET::IOADatabase::Get().GeomId().GetGeometryId(hitPos(0), hitPos(1), hitPos(2), CTHId);
+	  COMET::ICTHChannelId CTHChannelId;
+	  COMET::IGeometryDatabase::Get().GetChannelId(CTHChannelId, CTHId);
+
 	  if(!COMET::IGeomInfo::DetectorSolenoid().GetDetPositionInDSCoordinate(hitPos, hitPos)){
 	    continue;
 	    std::cout << "Mislocated hit is detected" << std::endl;
 	  }
 
+	  std::cout << CTHChannelId.GetScint() << "   " << CTHChannelId.GetLightGuide() << "   " << geoName << "   " << CTHChannelId.GetCounter() << "   " << CTHChannelId.GetModule() << std::endl;
+       
           if (geoName.Contains("Cherenkov_pv"))
 	    {
+
 	      CRKHitX[nCRKHit]=hitPos(0);
 	      CRKHitY[nCRKHit]=hitPos(1);
 	      CRKHitZ[nCRKHit]=hitPos(2);

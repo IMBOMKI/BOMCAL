@@ -10,13 +10,25 @@
 
 #include <ICOMETEvent.hxx>
 #include <ICOMETLog.hxx>
+
 #include <IHitSelection.hxx>
 #include <IMCHit.hxx>
 #include <IG4HitSegment.hxx>
 #include <IG4HitCalo.hxx>
 #include <IHit.hxx>
+#include <IGeomInfo.hxx>
+#include <IGeometryId.hxx>
+#include <COMETGeomId.hxx>
+#include <IGeomIdManager.hxx>
+#include <ICTHGeomId.hxx>
+#include <ICTHChannelId.hxx>
+#include <IChannelId.hxx>
+#include <IGeometryDatabase.hxx>
+#include <ICDCGeom.hxx>
 
-IMCTrigger::IMCTrigger(const char* name = "IMCTrigger", const char* title="mctrigger"){;}
+IMCTrigger::IMCTrigger(const char* name = "IMCTrigger", const char* title="mctrigger")
+:fStartT(700), fEndT(1170)
+{;}
 IMCTrigger::~IMCTrigger(){;}
 
 int IMCTrigger::Init()
@@ -48,87 +60,147 @@ int IMCTrigger::GetPhotonNumber(int pdgNum, double ene, double trLen){
     return NumOfPhoton;
 }
 
-int IMCTrigger::Finish(){
-  return 1;
-}
-
-COMET::IG4HitContainer* IMCTrigger::MakeCTHHitSelection(COMET::IHandle<COMET::IG4HitContainer> & cthhits){
+void IMCTrigger::MakeCTHMap(COMET::IHandle<COMET::IG4HitContainer> & cthhits, COMET::IHandle<COMET::IG4TrajectoryContainer> trajectories)
+{
+  COMET::IG4TrajectoryContainer *TrajCont = GetPointer(trajectories);
   COMETNamedDebug("IMCTrigger", "Start MakeCTHHitSelection");
-  COMET::IG4HitContainer* hits = new COMET::IG4HitContainer("mchits", "Hits found by IMCTrigger");
-  
-  if (cthhits){
-    for (COMET::IG4HitContainer::const_iterator hitSeg = cthhits->begin(); hitSeg != cthhits->end(); ++ hitSeg){
 
+  if (cthhits){
+    int count=0;
+    for (COMET::IG4HitContainer::const_iterator hitSeg = cthhits->begin(); hitSeg != cthhits->end(); ++ hitSeg){
       COMET::IG4HitSegment* tmpSeg = dynamic_cast<COMET::IG4HitSegment*>(*hitSeg);
       if (tmpSeg){
+	double x =0.5 * (tmpSeg->GetStopX()*(1/unit::cm)+tmpSeg->GetStartX()*(1/unit::cm));
+	double y =0.5 * (tmpSeg->GetStopY()*(1/unit::cm)+tmpSeg->GetStartY()*(1/unit::cm));
+	double z =0.5 * (tmpSeg->GetStopZ()*(1/unit::cm)+tmpSeg->GetStartZ()*(1/unit::cm));
+	double t = 0.5 * (tmpSeg->GetStopT()*(1/unit::ns)+tmpSeg->GetStartT()*(1/unit::ns));
 
-	TVector3 hitPos;
-	Double_t hitT;
+	COMET::IGeometryId CTHId;
+	COMET::IOADatabase::Get().GeomId().GetGeometryId(x, y, z, CTHId);
+	COMET::ICTHChannelId CTHChannelId;
+	COMET::IGeometryDatabase::Get().GetChannelId(CTHChannelId, CTHId);
 
-	hitPos(0)=0.5 * (tmpSeg->GetStopX()*(1/unit::cm)+tmpSeg->GetStartX()*(1/unit::cm));
-	hitPos(1)=0.5 * (tmpSeg->GetStopY()*(1/unit::cm)+tmpSeg->GetStartY()*(1/unit::cm));
-	hitPos(2)=0.5 * (tmpSeg->GetStopZ()*(1/unit::cm)+tmpSeg->GetStartZ()*(1/unit::cm));
-	hitT = 0.5 * (tmpSeg->GetStopT()*(1/unit::ns)+tmpSeg->GetStartT()*(1/unit::ns));
-	TGeoNode* volume = GetNode(hitPos);
-	TString geoName = TString(volume->GetName());
+        UInt_t scint   = CTHChannelId.GetScint();        // Scintillator(1) or Cherenkov(0)     
+	UInt_t lightG  = CTHChannelId.GetLightGuide();   // Light Guide             
+        UInt_t index   = CTHChannelId.GetCounter();      // segment ID (1-64)         
+        UInt_t module  = CTHChannelId.GetModule();       // Upstream (0), Downstream(1)  
 
-	if (geoName.Contains("Cherenkov_pv"))
+	if (scint==0 && lightG==0) //Cherenkov
 	  {
-	    /*
-	    CRKHitX[nCRKHit]=hitPos(0);
-	    CRKHitY[nCRKHit]=hitPos(1);
-	    CRKHitZ[nCRKHit]=hitPos(2);
-	    CRKHitT[nCRKHit]=hitT;
-	    CRKEDep[nCRKHit]=tmpSeg->GetEnergyDeposit();
-	    
-	    COMET::IHandle<COMET::IG4Trajectory> tmpHandle = TrajCont->GetTrajectory(trajContributors.back());
+	    COMET::IHandle<COMET::IG4Trajectory> tmpHandle = TrajCont->GetTrajectory(tmpSeg->GetContributors().back());
 	    COMET::IG4Trajectory *tmpTraj = GetPointer(tmpHandle);
-	    Double_t TrLen=tmpSeg->GetTrackLength()*(1/unit::cm);
-	    Int_t pdg = tmpTraj->GetPDGEncoding();
-	    Double_t ene = tmpTraj->GetInitialMomentum()(3)*(1/unit::MeV);
-	    
-	    if (GetPhotonNum(pdg,ene,TrLen)>=1 ){
-	      
-	      Int_t delim = (geoName).Last('_');
-	      Int_t CRKIndex= ((geoName).Remove(0,delim+1)).Atoi();
-	      
-	      TrigCRK[nTrigCRK]=CRKIndex;
-	      TrigCRKTime[nTrigCRK]=hitT;
-	      nTrigCRK++;
-	      
+	    double TrLen=tmpSeg->GetTrackLength()*(1/unit::cm);
+	    int pdg = tmpTraj->GetPDGEncoding();
+            double ene = tmpTraj->GetInitialMomentum()(3)*(1/unit::MeV);
+
+	    if (GetPhotonNumber(pdg,ene,TrLen)>=1 ){	      
+	      fTime.insert (std::make_pair(count, t));
+	      fIndex.insert(std::make_pair(count, index));
+	      fScint.insert(std::make_pair(count, scint));
+	      fModule.insert(std::make_pair(count, module));
+	      count++;
 	    }
-	    
-	    nCRKHit++;	    
-	    */
 	  }
-	
-	
-	else if (geoName.Contains("Scintillator_pv"))
-	  {
-	    /*
-	    STLHitX[nSTLHit]=hitPos(0);
-	    STLHitY[nSTLHit]=hitPos(1);
-	    STLHitZ[nSTLHit]=hitPos(2);
-	    STLHitT[nSTLHit]=hitT;
-	    STLEDep[nSTLHit]=tmpSeg->GetEnergyDeposit();	      
-	    
-	    if (STLEDep[nSTLHit]*(1/unit::MeV)>0.063){   // Energy deposit is higher than 63keV                        
-	      
-	      Int_t delim = (geoName).Last('_');
-	      Int_t STLIndex= ((geoName).Remove(0,delim+1)).Atoi();
-	      
-	      TrigSTL[nTrigSTL]=STLIndex;
-	      TrigSTLTime[nTrigSTL]=hitT;
-	      nTrigSTL++;
-	      
-	    }
-	    
-	    nSTLHit++;
-	    */
-	  }
-	
+		
+	else if (scint==1 && lightG==0)  //Scintillator
+	  {	    
+	    fTime.insert(std::make_pair(count, t));
+	    fIndex.insert(std::make_pair(count, index));
+	    fScint.insert(std::make_pair(count, scint));
+	    fModule.insert(std::make_pair(count, module));
+	    count++;	   
+	  }	
       }  
     }
-  }
+  }  
+}
+
+bool TimeComparison(const std::pair<int,double> &A,const std::pair<int,double> &B)
+{
+  return A.second<B.second;
+}
+
+void IMCTrigger::MakeTimeCluster(int Module){
+  std::vector <std::pair <int, double> > TimeOrdering;  // (int->key Value, double->time)
+  std::map< int, int >::iterator iter;
+  int cluCount=0;
+
+  for( iter = fModule.begin(); iter != fModule.end(); ++iter)
+    {
+      double hitTime = fTime.at(iter->first);
+      if (iter->second == Module){      // Down stream
+	
+	TimeOrdering.push_back(std::make_pair(iter->first,hitTime));
+	sort(TimeOrdering.begin(), TimeOrdering.end(), TimeComparison);       
+      }      
+    }
   
+  for (int i=0 ; i<TimeOrdering.size(); i++){
+    if ((TimeOrdering.at(i+1).second - TimeOrdering.at(i).second < 10 ) && (i+1<TimeOrdering.size())){
+      double refT = TimeOrdering.at(i).second;
+      std::vector < int > ClusterKeyVal;
+      std::vector < int > ScintClusterKeyVal;
+      std::vector < int > CherenClusterKeyVal;
+
+      ClusterKeyVal.push_back(TimeOrdering.at(i).first);
+      int j=i+1;
+      while ( TimeOrdering.at(j).second-refT < 10 && j<TimeOrdering.size()){	
+	bool Push=1;
+	for (int i_clu=0; i_clu<ClusterKeyVal.size(); i_clu++){
+	  int keyVal  = TimeOrdering.at(j).first;
+	  int keyVal2 = ClusterKeyVal.at(i_clu);	  
+	  if (fScint.at(keyVal)==fScint.at(keyVal2) && fIndex.at(keyVal)==fIndex.at(keyVal2)){
+	    Push=0;
+	  }
+	}
+	if (Push==1) ClusterKeyVal.push_back(TimeOrdering.at(j).first);
+	j++;	
+      }
+
+      // Sort with Scintillator and Cherenkov
+      for (int ii=0; ii < ClusterKeyVal.size(); ii++){      
+	int keyVal = ClusterKeyVal.at(ii);
+	if (fScint.at(keyVal)==1){
+	  ScintClusterKeyVal.push_back(keyVal);
+	}
+	else if (fScint.at(keyVal)==0){
+	  CherenClusterKeyVal.push_back(keyVal);
+	}
+      }
+
+      if (ScintClusterKeyVal.size()>0 && CherenClusterKeyVal.size()>0){
+	if (Module==1) fDSTimeCluster.push_back(std::make_pair(ScintClusterKeyVal,CherenClusterKeyVal));
+        else if (Module==1) fUSTimeCluster.push_back(std::make_pair(ScintClusterKeyVal,CherenClusterKeyVal));
+      }
+
+      i=j;
+      cluCount++;
+    }
+  }
+}
+
+void IMCTrigger::PrintTimeCluster(){
+  for (int i=0 ; i<fDSTimeCluster.size(); i++){
+    
+    
+
+  }
+
+  for (int i=0 ; i<fUSTimeCluster.size(); i++){
+
+  }
+
+}
+
+void IMCTrigger::Clear(){
+  fTime.clear();  
+  fIndex.clear();
+  fScint.clear();
+  fModule.clear();
+  fDSTimeCluster.clear();
+  fUSTimeCluster.clear();
+}
+
+int IMCTrigger::Finish(){
+  return 1;
 }
