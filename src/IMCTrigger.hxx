@@ -34,11 +34,13 @@ private:
   std::vector < std::pair< std::vector< int >, std::vector< int > > > fDSTimeCluster; // int->key Value
   std::vector < std::pair< std::vector< int >, std::vector< int > > > fUSTimeCluster;
 
-  //
+  // Pair Candidates
+  std::vector < std::pair < std::vector< int >, std::vector< int> > > fPairCandidates; // int->key Value
+
   int fCTHSegNum;
   double fStartT;
   double fEndT;
-
+  
 public:
   IMCTrigger(const char*name, const char* title);
   ~IMCTrigger();
@@ -57,6 +59,10 @@ public:
 
   void MakeTimeCluster(int Module);
   void PrintTimeCluster();
+  void ApplyShiftCondition(int Module, int shift);
+  void PrintPairCandidates();
+  bool GetFourFoldCoincidence();
+  void Process(int shift);
 
   void Clear();
 

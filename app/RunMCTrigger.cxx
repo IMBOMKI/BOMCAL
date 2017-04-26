@@ -33,6 +33,7 @@ public:
     std::cout << "Initialize" << std::endl;
     fMCTrigger = new IMCTrigger("mctrigger", "MC trigger");
     fMCTrigger->Init();
+
   }
   
   bool operator () (COMET::ICOMETEvent& event) {
@@ -42,15 +43,19 @@ public:
     COMET::IHandle<COMET::IG4TrajectoryContainer> CTHTrajectories = event.Get<COMET::IG4TrajectoryContainer>("truth/G4Trajectories");
     
     fMCTrigger->MakeCTHMap(CTHHits, CTHTrajectories);
-    fMCTrigger->MakeTimeCluster(1);
-    fMCTrigger->MakeTimeCluster(0);
+    fMCTrigger->Process(1);
+    fFourFoldCoincidence = fMCTrigger->GetFourFoldCoincidence();
+    fMCTrigger->PrintPairCandidates();
     fMCTrigger->Clear();
-    
+
+    if (fFourFoldCoincidence==1) FourFoldCount++;
+        
     return true;
   }
   
   void Finalize(COMET::ICOMETOutput* output) {
     std::cout << "Finalize" << std::endl;
+    std::cout << "FourFold Count: " << FourFoldCount << std::endl;
     delete fMCTrigger;
     return;
   }
@@ -62,8 +67,11 @@ private:
   std::string fileMode;
   char fullName[100];
 
-  IMCTrigger* fMCTrigger;
   int eventNumber;
+
+  IMCTrigger* fMCTrigger;
+  bool fFourFoldCoincidence;
+  int FourFoldCount;
 };
 
 int main(int argc, char **argv) {
