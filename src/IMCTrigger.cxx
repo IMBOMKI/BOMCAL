@@ -405,6 +405,10 @@ bool IMCTrigger::GetFourFoldCoincidence(){
   return 0;
 }
 
+std::vector < std::pair < std::vector< int >, std::vector< int> > > IMCTrigger::GetPairCandidates(){
+  return fPairCandidates;
+}
+
 void IMCTrigger::Clear(){
   fTime.clear();  
   fIndex.clear();

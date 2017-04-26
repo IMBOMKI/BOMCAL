@@ -62,6 +62,7 @@ public:
   void ApplyShiftCondition(int Module, int shift);
   void PrintPairCandidates();
   bool GetFourFoldCoincidence();
+  std::vector < std::pair < std::vector< int >, std::vector< int> > > GetPairCandidates();
   void Process(int shift);
 
   void Clear();

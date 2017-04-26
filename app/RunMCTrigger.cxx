@@ -1,9 +1,12 @@
+#include <IMCTrigger.hxx>
+#include <ITracking.hxx>
+#include <IHoughTransform.hxx>
+
 #include <cometEventLoop.hxx>
 #include <IMCHit.hxx>
 #include <COMETGeomId.hxx>
 #include <COMETGeomIdDef.hxx>
 #include <IGeomInfo.hxx>
-#include <IMCTrigger.hxx>
 #include <TFile.h>
 #include <TTree.h>
 
@@ -34,6 +37,9 @@ public:
     fMCTrigger = new IMCTrigger("mctrigger", "MC trigger");
     fMCTrigger->Init();
 
+    fHoughTransform = new IHoughTransform("houghtransform","Hough Transform");
+    fHoughTransform->Init();
+
   }
   
   bool operator () (COMET::ICOMETEvent& event) {
@@ -42,13 +48,28 @@ public:
     COMET::IHandle<COMET::IG4HitContainer> CTHHits = event.Get<COMET::IG4HitContainer>("truth/g4Hits/CTH");
     COMET::IHandle<COMET::IG4TrajectoryContainer> CTHTrajectories = event.Get<COMET::IG4TrajectoryContainer>("truth/G4Trajectories");
     
+    COMET::IHandle<COMET::IHitSelection> CDCHits_DetResp = event.Get<COMET::IHitSelection>("./hits/mcCDC");
+
+
+    ////////////////////////////////////////////////////
+    //////              Trigger                  ///////               
+    ////////////////////////////////////////////////////
+
     fMCTrigger->MakeCTHMap(CTHHits, CTHTrajectories);
     fMCTrigger->Process(1);
     fFourFoldCoincidence = fMCTrigger->GetFourFoldCoincidence();
+    fPairCandidates = fMCTrigger->GetPairCandidates();
     fMCTrigger->PrintPairCandidates();
     fMCTrigger->Clear();
 
-    if (fFourFoldCoincidence==1) FourFoldCount++;
+    ////////////////////////////////////////////////////
+    //////              Tracking                 ///////               
+    ////////////////////////////////////////////////////
+    
+    if (fFourFoldCoincidence==1) {
+      fHoughTransform->LoadMCHits(CDCHits_DetResp);
+      FourFoldCount++;
+    }
         
     return true;
   }
@@ -69,9 +90,15 @@ private:
 
   int eventNumber;
 
+  /********  Trigger  *******/
   IMCTrigger* fMCTrigger;
   bool fFourFoldCoincidence;
+  std::vector < std::pair < std::vector< int >, std::vector< int> > > fPairCandidates;
   int FourFoldCount;
+ 
+  /******** Tracking ********/
+  IHoughTransform* fHoughTransform;
+
 };
 
 int main(int argc, char **argv) {
