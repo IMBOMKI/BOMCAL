@@ -68,8 +68,6 @@ public:
   std::vector < std::pair < std::vector< int >, std::vector< int> > > GetPairCandidates();
   void Process();
 
-  void Clear();
-
   /// called at the end of run or else (should not be in event-by-event)
   int  Finish();
 

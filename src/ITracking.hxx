@@ -34,7 +34,7 @@ protected:
   double fGenTrPz;
   double fGenTrE;
 
-  int    fnCALCDCHit;
+  int    fnCALCDCHit=0;
   double fDriftDist[10000];
   int    fCDCCharge[10000];
   double fWireEnd0X[10000];
@@ -60,8 +60,6 @@ public:
   void LoadMCHits(COMET::IHandle<COMET::IHitSelection> hitHandle, COMET::IHandle<COMET::IG4TrajectoryContainer> trajectories);
 
   void PrintMCStatus();
-
-  void Clear();
 
   /// called at the end of run or else (should not be in event-by-event)
   int  Finish();

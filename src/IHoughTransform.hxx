@@ -45,12 +45,14 @@ private:
   //={-73.6843, -73.9348,-74.2353,-74.5358, -74.7863, -75.0868, 0,0,0,0,0,0,0,0,0,0,0,0};
 
   /*** HoughTransform Variables ***/
-  int fniter;
+  int fnIter;
   int fnBins;
   double fnPt;
   double fRhoMax;
   double fRhoMin;
   int fBandWidth;
+  double fRadUncertainty;
+  std::pair <double, double> fRef;
 
   /*** Hit Variables ***/
   int fnEvenhits=0;
@@ -86,28 +88,17 @@ public:
     ITracking::LoadMCHits(hitHandle, trajectories);
   }
 
-  void SetHoughTransformVariables(int niter, int nBins, double nPt, double rhoMax, double rhoMin, int bandWidth){
-    fniter     = niter;
-    fnBins     = nBins;
-    fnPt       = nPt;
-    fRhoMax    = rhoMax;
-    fRhoMin    = rhoMin;
-    fBandWidth = bandWidth;
-  }
-
-  void GetDSCoordinate();
+  void SetHoughTransformVariables(int nIter, int nBins, double nPt, double rhoMax, double rhoMin, int bandWidth, double rad_uncertainty, double refX, double refY);
+  void GetLocalCoordinate();
   void SortHits(); 
   void ConfigureHitClusters();
   double ConfTransX(double x, double y) { return x/(pow(x,2)+pow(y,2));}
   double ConfTransY(double x, double y) { return y/(pow(x,2)+pow(y,2));}
   double HoughTrans(double x, double y, double theta) { return x*TMath::Cos(theta*TMath::Pi()/180)+y*TMath::Sin(theta*TMath::Pi()/180);}
   std::vector<std::pair<double,double> > MakeOrigins(double rad_uncertainty, std::pair<double,double> ref);
-
   void Process();
+  void GetMasterCoordinate();
 
-  void Clear(){
-    ITracking::Clear();
-  }
 
   /// called at the end of run or else (should not be in event-by-event)
   int  Finish();

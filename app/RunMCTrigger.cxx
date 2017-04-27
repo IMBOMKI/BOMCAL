@@ -39,9 +39,6 @@ public:
 
   virtual void Initialize(void) {
     std::cout << "Initialize" << std::endl;
-    //fMCTrigger->Init();
-
-    //fHoughTransform->Init();
   }
   
   bool operator () (COMET::ICOMETEvent& event) {
@@ -81,17 +78,16 @@ public:
     ////////////////////////////////////////////////////
     
     if (fFourFoldCoincidence==1) {
-      //fHoughTransform->LoadMCHits(CDCHits_DetResp, Trajectories);
-      fHoughTransform->SetHoughTransformVariables(3,100,300.0,0.02,-0.02,8);
+      fHoughTransform->LoadMCHits(CDCHits_DetResp, Trajectories);
+      fHoughTransform->SetHoughTransformVariables(3,100,300.0,0.02,-0.02,8,5,0,0);
+      fHoughTransform->Process();
       FourFoldCount++;
     }
     
 
     delete fMCTrigger;
     delete fHoughTransform;
-
     return true;
-
   }
   
   void Finalize(COMET::ICOMETOutput* output) {

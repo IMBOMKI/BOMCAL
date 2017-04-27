@@ -430,18 +430,6 @@ std::vector < std::pair < std::vector< int >, std::vector< int> > > IMCTrigger::
   return fPairCandidates;
 }
 
-void IMCTrigger::Clear(){
-  fTime.clear();  
-  fIndex.clear();
-  fScint.clear();
-  fModule.clear();
-  fDSTimeCluster.clear();
-  fUSTimeCluster.clear();
-  fPairCandidates_key.clear();
-  fPairCandidates.clear();
-  fShift=0;
-}
-
 int IMCTrigger::Finish(){
   return 1;
 }

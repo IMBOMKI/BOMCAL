@@ -27,6 +27,9 @@
 #include <IGeometryDatabase.hxx>
 #include <ICDCGeom.hxx>
 
+#include <TGeoManager.h>
+#include <TGeoNode.h>
+
 ITracking::ITracking(const char* name = "ITracking", const char* title="tracking")
 {;}
 ITracking::~ITracking(){;}
@@ -41,6 +44,7 @@ int ITracking::Init()
 
 void ITracking::LoadMCHits(COMET::IHandle<COMET::IHitSelection> hitHandle, COMET::IHandle<COMET::IG4TrajectoryContainer> trajectories){
 
+  TGeoManager* geom = COMET::IOADatabase::Get().Geometry();
   COMET::IG4TrajectoryContainer *TrajCont = GetPointer(trajectories);
   
   if(TrajCont->empty()){
@@ -66,11 +70,12 @@ void ITracking::LoadMCHits(COMET::IHandle<COMET::IHitSelection> hitHandle, COMET
       }
     }
   }
-      
+  
   COMET::IChannelId tmpchanId;
 
   if (hitHandle){
     COMET::IHitSelection *hits = GetPointer(hitHandle);
+    
     for (COMET::IHitSelection::const_iterator hitSeg = hits->begin(); hitSeg != hits->end(); hitSeg++){
       
       COMET::IChannelId chanId = (*hitSeg)->GetChannelId();
@@ -89,17 +94,6 @@ void ITracking::LoadMCHits(COMET::IHandle<COMET::IHitSelection> hitHandle, COMET
       TVector3 wireend0(wireMes[0],wireMes[1],wireMes[2]);	
       TVector3 wireend1(wireMes[3],wireMes[4],wireMes[5]);
       Double_t Drfit = (*hitSeg)->GetDriftDistance();
-
-      ////////////////////////////////////////////////////////
-      
-      //if(!COMET::IGeomInfo::DetectorSolenoid().GetDetPositionInDSCoordinate(wireend0, wireend0)){
-      //	continue;
-      //	std::cout << "MisIdentifided wire is detected" << std::endl;}
-      //if(!COMET::IGeomInfo::DetectorSolenoid().GetDetPositionInDSCoordinate(wireend1, wireend1)){
-      //	continue;
-      //	std::cout << "MisIdentifided wire is detected" << std::endl;}
-      
-      ////////////////////////////////////////////////////////
 
       int layer = COMET::IGeomInfo::Get().CDC().GetLayer(wire);
       int fWireMaxLayerId;
@@ -149,39 +143,13 @@ void ITracking::LoadMCHits(COMET::IHandle<COMET::IHitSelection> hitHandle, COMET
 	fDriftDist[fnCALCDCHit]=wireMes[6];
 	fWireLayerId[fnCALCDCHit]=layer;
 	fWireId[fnCALCDCHit]=wireid;
-      }
-      
+      }            
     }
   }
 }
 
 void ITracking::PrintMCStatus(){
   std::cout << "Print Something..." << std::endl;
-}
-
-void ITracking::Clear(){
-  fGenTrX=0;
-  fGenTrY=0;
-  fGenTrZ=0;
-  fGenTrT=0;
-  fGenTrPx=0;
-  fGenTrPy=0;
-  fGenTrPz=0;
-  fGenTrE=0;
-
-  fnCALCDCHit=0;
-  memset(fDriftDist,0,sizeof(fDriftDist));
-  memset(fCDCCharge,0,sizeof(fCDCCharge));
-  memset(fWireEnd0X,0,sizeof(fWireEnd0X));  
-  memset(fWireEnd0Y,0,sizeof(fWireEnd0Y));  
-  memset(fWireEnd0Z,0,sizeof(fWireEnd0Z));  
-  memset(fWireEnd1X,0,sizeof(fWireEnd1X));  
-  memset(fWireEnd1Y,0,sizeof(fWireEnd1Y));  
-  memset(fWireEnd1Z,0,sizeof(fWireEnd1Z));  
-  memset(fWireLayerId,0,sizeof(fWireLayerId));  
-  memset(fWireId,0,sizeof(fWireId)); 
-  fWireMaxLayerId=0;
-  memset(fReco,0,sizeof(fReco));
 }
 
 int ITracking::Finish(){
