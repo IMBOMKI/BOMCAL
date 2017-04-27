@@ -24,6 +24,16 @@ class ITracking{
 private:
   
 protected:
+  // Input Members
+  double fGenTrX;
+  double fGenTrY;
+  double fGenTrZ;
+  double fGenTrT;
+  double fGenTrPx;
+  double fGenTrPy;
+  double fGenTrPz;
+  double fGenTrE;
+
   int    fnCALCDCHit;
   double fDriftDist[10000];
   int    fCDCCharge[10000];
@@ -37,6 +47,9 @@ protected:
   int    fWireId[10000];
   int    fWireMaxLayerId;
 
+  // Process output
+  bool   fReco[10000];
+
 public:
   ITracking(const char*name, const char* title);
   virtual ~ITracking();
@@ -44,7 +57,8 @@ public:
   /// called at the begin of run or else (should not be in event-by-event)
   int  Init();
 
-  void LoadMCHits(COMET::IHandle<COMET::IHitSelection> hitHandle);
+  void LoadMCHits(COMET::IHandle<COMET::IHitSelection> hitHandle, COMET::IHandle<COMET::IG4TrajectoryContainer> trajectories);
+
   void PrintMCStatus();
 
   void Clear();

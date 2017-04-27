@@ -9,6 +9,7 @@
 #include <IGeomInfo.hxx>
 #include <TFile.h>
 #include <TTree.h>
+#include <ICDCWireManager.hxx>
 
 #include <vector>
 #include <iostream>
@@ -16,7 +17,11 @@
 
 class TMyEventLoop: public COMET::ICOMETEventLoopFunction {
 public:
-  TMyEventLoop(): fileName("default.root"), fileMode("recreate"), outputDir("../anal") {}
+  TMyEventLoop(): 
+    fileName("default.root"), 
+    fileMode("recreate"), 
+    outputDir("../anal")
+  {}
   virtual ~TMyEventLoop() {}
  
   void Usage(void){
@@ -34,50 +39,64 @@ public:
 
   virtual void Initialize(void) {
     std::cout << "Initialize" << std::endl;
-    fMCTrigger = new IMCTrigger("mctrigger", "MC trigger");
-    fMCTrigger->Init();
+    //fMCTrigger->Init();
 
-    fHoughTransform = new IHoughTransform("houghtransform","Hough Transform");
-    fHoughTransform->Init();
-
+    //fHoughTransform->Init();
   }
   
   bool operator () (COMET::ICOMETEvent& event) {
-    eventNumber = event.GetEventId();
+
+    ////////////////////////////////////////////////////
+    //////     SimG4/SimDetResp Information      ///////               
+    ////////////////////////////////////////////////////
+    
+    fEventId = event.GetEventId();
     COMET::IOADatabase::Get().Geometry();
     COMET::IHandle<COMET::IG4HitContainer> CTHHits = event.Get<COMET::IG4HitContainer>("truth/g4Hits/CTH");
-    COMET::IHandle<COMET::IG4TrajectoryContainer> CTHTrajectories = event.Get<COMET::IG4TrajectoryContainer>("truth/G4Trajectories");
+    COMET::IHandle<COMET::IG4HitContainer> CDCHits = event.Get<COMET::IG4HitContainer>("truth/g4Hits/CDC");
+    COMET::IHandle<COMET::IG4TrajectoryContainer> Trajectories = event.Get<COMET::IG4TrajectoryContainer>("truth/G4Trajectories");
     
     COMET::IHandle<COMET::IHitSelection> CDCHits_DetResp = event.Get<COMET::IHitSelection>("./hits/mcCDC");
 
+    ////////////////////////////////////////////////////
+    //////         Analysis Class Object         ///////               
+    ////////////////////////////////////////////////////
+
+    fMCTrigger = new IMCTrigger("mctrigger", "MC trigger");
+    fHoughTransform = new IHoughTransform("houghtransform","Hough Transform");
 
     ////////////////////////////////////////////////////
     //////              Trigger                  ///////               
     ////////////////////////////////////////////////////
-
-    fMCTrigger->MakeCTHMap(CTHHits, CTHTrajectories);
-    fMCTrigger->Process(1);
+    
+    fMCTrigger->MakeCTHMap(CTHHits, Trajectories);
+    fMCTrigger->SetMCTriggerVariable(1); // Set shift tolerance
+    fMCTrigger->Process();
     fFourFoldCoincidence = fMCTrigger->GetFourFoldCoincidence();
     fPairCandidates = fMCTrigger->GetPairCandidates();
-    fMCTrigger->PrintPairCandidates();
-    fMCTrigger->Clear();
-
+    fMCTrigger->PrintResults();
+    
     ////////////////////////////////////////////////////
     //////              Tracking                 ///////               
     ////////////////////////////////////////////////////
     
     if (fFourFoldCoincidence==1) {
-      fHoughTransform->LoadMCHits(CDCHits_DetResp);
+      //fHoughTransform->LoadMCHits(CDCHits_DetResp, Trajectories);
+      fHoughTransform->SetHoughTransformVariables(3,100,300.0,0.02,-0.02,8);
       FourFoldCount++;
     }
-        
+    
+
+    delete fMCTrigger;
+    delete fHoughTransform;
+
     return true;
+
   }
   
   void Finalize(COMET::ICOMETOutput* output) {
     std::cout << "Finalize" << std::endl;
     std::cout << "FourFold Count: " << FourFoldCount << std::endl;
-    delete fMCTrigger;
     return;
   }
   
@@ -88,9 +107,9 @@ private:
   std::string fileMode;
   char fullName[100];
 
-  int eventNumber;
+  int fEventId;
 
-  /********  Trigger  *******/
+  /******** Trigger *******/
   IMCTrigger* fMCTrigger;
   bool fFourFoldCoincidence;
   std::vector < std::pair < std::vector< int >, std::vector< int> > > fPairCandidates;

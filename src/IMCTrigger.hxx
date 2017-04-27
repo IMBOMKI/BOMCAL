@@ -35,11 +35,13 @@ private:
   std::vector < std::pair< std::vector< int >, std::vector< int > > > fUSTimeCluster;
 
   // Pair Candidates
-  std::vector < std::pair < std::vector< int >, std::vector< int> > > fPairCandidates; // int->key Value
+  std::vector < std::pair < std::vector< int >, std::vector< int> > > fPairCandidates_key; // int->key Value
+  std::vector < std::pair < std::vector< int >, std::vector< int> > > fPairCandidates;     // int->Index Value
 
   int fCTHSegNum;
   double fStartT;
   double fEndT;
+  int fShift;
   
 public:
   IMCTrigger(const char*name, const char* title);
@@ -57,13 +59,14 @@ public:
   // Make map for CTH hits' index & time
   void MakeCTHMap(COMET::IHandle<COMET::IG4HitContainer> & cthhits, COMET::IHandle<COMET::IG4TrajectoryContainer> trajectories);
 
+  void SetMCTriggerVariable(int shift){ fShift = shift; }
   void MakeTimeCluster(int Module);
   void PrintTimeCluster();
   void ApplyShiftCondition(int Module, int shift);
-  void PrintPairCandidates();
+  void PrintResults();
   bool GetFourFoldCoincidence();
   std::vector < std::pair < std::vector< int >, std::vector< int> > > GetPairCandidates();
-  void Process(int shift);
+  void Process();
 
   void Clear();
 

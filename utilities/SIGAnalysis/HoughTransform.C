@@ -373,7 +373,7 @@ void HoughTransform(std::string filedir, std::string filename, std::string outpu
     //    Main Analysis   //
     ////////////////////////
        
-      for (Int_t is_even=0; is_even<2; is_even++){
+    for (Int_t is_even=0; is_even<2; is_even++){
 	  
 	Double_t rad_uncertainty=5;
 	std::pair <Double_t,Double_t> ref = std::make_pair(0,0);
@@ -900,7 +900,7 @@ if (ifSingleTurn==1){
 
       ///////////////////////////////////////////////////////////////////////////////////////////////////
       //                                                                                               //
-      //                                         PLOTTING SECTION                                      //  
+      //                                         PLOTTING SECTION                                      //
       //                                                                                               //
       ///////////////////////////////////////////////////////////////////////////////////////////////////
 

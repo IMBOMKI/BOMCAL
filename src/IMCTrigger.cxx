@@ -333,10 +333,20 @@ void IMCTrigger::ApplyShiftCondition(int Module, int shift){
 	    std::vector < int > CherenCluster;   // index
 	    
 	    for (int i_ele=0; i_ele<ScintCluster_key.size(); i_ele++){
-	      ScintCluster.push_back(fIndex.at(ScintCluster_key.at(i_ele)));
+	      //ScintCluster.push_back(fIndex.at(ScintCluster_key.at(i_ele)));
+	      int index;      
+	      int keyVal=ScintCluster_key.at(i_ele);        
+	      if (fModule.at(keyVal)==0)      index=fIndex.at(keyVal)+fCTHSegNum;
+	      else if (fModule.at(keyVal)==1) index=fIndex.at(keyVal);		      
+	      ScintCluster.push_back(index);
 	    }
 	    for (int i_ele=0; i_ele<CherenCluster_key.size(); i_ele++){
-	      CherenCluster.push_back(fIndex.at(CherenCluster_key.at(i_ele)));
+	      //CherenCluster.push_back(fIndex.at(CherenCluster_key.at(i_ele)));
+	      int index;      
+	      int keyVal=CherenCluster_key.at(i_ele);        
+	      if (fModule.at(keyVal)==0)      index=fIndex.at(keyVal)+fCTHSegNum;
+	      else if (fModule.at(keyVal)==1) index=fIndex.at(keyVal);		      
+	      CherenCluster.push_back(index);
 	    }
 	    
 	    
@@ -344,15 +354,26 @@ void IMCTrigger::ApplyShiftCondition(int Module, int shift){
 	      int NumOfOverlap=0;
 	      for (int i_clu=0; i_clu<ScintCluster.size(); i_clu++){
 		
-		if ( std::find(CherenCluster.begin(),
-			       CherenCluster.end(),
-      			       (ScintCluster.at(i_clu)+i_shift)%fCTHSegNum) 
-		     != CherenCluster.end() ){
-		  NumOfOverlap++;
-		}		
+		if (Module==1){
+		  if ( std::find(CherenCluster.begin(),
+				 CherenCluster.end(),
+				 (ScintCluster.at(i_clu)+i_shift)%fCTHSegNum) 
+		       != CherenCluster.end() ){
+		    NumOfOverlap++;
+		  }		
+		}
+		if (Module==0){
+		  if ( std::find(CherenCluster.begin(),
+				 CherenCluster.end(),
+				 (ScintCluster.at(i_clu)+i_shift)%fCTHSegNum+fCTHSegNum) 
+		       != CherenCluster.end() ){
+		    NumOfOverlap++;
+		  }		
+		}
 	      }
 	      if (NumOfOverlap>=2) {
-		fPairCandidates.push_back(make_pair(ScintCluster_key,CherenCluster_key));
+		fPairCandidates_key.push_back(make_pair(ScintCluster_key,CherenCluster_key));
+		fPairCandidates.push_back(make_pair(ScintCluster,CherenCluster));
 		break;
 	      }
 	    }
@@ -363,41 +384,41 @@ void IMCTrigger::ApplyShiftCondition(int Module, int shift){
   }
 }
 
-void IMCTrigger::PrintPairCandidates(){
+void IMCTrigger::PrintResults(){
+
   if (fPairCandidates.size()>0){    
-    std::cout << "----------------- Pair Candidates -----------------" << std::endl;
+    std::cout << "///////////////////////////////////////" << std::endl;
+    std::cout << "/// MC Trigger Coincidence Analysis ///" << std::endl;
+    std::cout << "///////////////////////////////////////" << std::endl;
+    std::cout << std::endl;
+    std::cout << "----- Pair Candidates -----" << std::endl;
     for (int i_cand=0; i_cand<fPairCandidates.size(); i_cand++){
-      std::vector< int > ScintCandidate = fPairCandidates.at(i_cand).first;
+      std::vector< int > ScintCandidate  = fPairCandidates.at(i_cand).first;
       std::vector< int > CherenCandidate = fPairCandidates.at(i_cand).second;
       
       for (int i_sci=0; i_sci<ScintCandidate.size(); i_sci++){
-	int index;      
-	int keyVal=ScintCandidate.at(i_sci);        
-	if (fModule.at(keyVal)==0) 
-	  {index=fIndex.at(keyVal)+fCTHSegNum;}       
-	else if (fModule.at(keyVal)==1) 
-	  {index=fIndex.at(keyVal);}	
-	std::cout << index << "  ";// << fScint.at(keyVal) << " " << fModule.at(keyVal) << " " << fTime.at(keyVal) << "   ";
+	int index=ScintCandidate.at(i_sci);        
+	std::cout << index << "  ";
       }
       std::cout << "|  ";
       
       for (int i_che=0; i_che<CherenCandidate.size(); i_che++){
-	int index;      
-	int keyVal=CherenCandidate.at(i_che);        
-	if (fModule.at(keyVal)==0) {index=fIndex.at(keyVal)+fCTHSegNum;}
-	else {index=fIndex.at(keyVal);}
-	std::cout << index << "  ";//<< fScint.at(keyVal) << " " << fModule.at(keyVal) << " " << fTime.at(keyVal) << "   ";
+	int index=CherenCandidate.at(i_che);      
+	std::cout << index << "  ";
       }      
       std::cout << std::endl;      
     }
+    std::cout << "---------------------------" << std::endl;
+    std::cout << std::endl;
   }
+
 }
 
-void IMCTrigger::Process(int shift){
+void IMCTrigger::Process(){
   MakeTimeCluster(1);
   MakeTimeCluster(0);
-  ApplyShiftCondition(1,shift);
-  ApplyShiftCondition(0,shift);  
+  ApplyShiftCondition(1,fShift);
+  ApplyShiftCondition(0,fShift);  
 }
 
 bool IMCTrigger::GetFourFoldCoincidence(){
@@ -416,7 +437,9 @@ void IMCTrigger::Clear(){
   fModule.clear();
   fDSTimeCluster.clear();
   fUSTimeCluster.clear();
+  fPairCandidates_key.clear();
   fPairCandidates.clear();
+  fShift=0;
 }
 
 int IMCTrigger::Finish(){

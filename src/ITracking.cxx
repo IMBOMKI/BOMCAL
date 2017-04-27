@@ -39,8 +39,34 @@ int ITracking::Init()
   return 1;
 }
 
-void ITracking::LoadMCHits(COMET::IHandle<COMET::IHitSelection> hitHandle){
+void ITracking::LoadMCHits(COMET::IHandle<COMET::IHitSelection> hitHandle, COMET::IHandle<COMET::IG4TrajectoryContainer> trajectories){
 
+  COMET::IG4TrajectoryContainer *TrajCont = GetPointer(trajectories);
+  
+  if(TrajCont->empty()){
+    std::cout<< "Result is not found" << std::endl;
+  }
+  
+  if(!TrajCont->empty()){
+    
+    for(COMET::IG4TrajectoryContainer::const_iterator seg = TrajCont->begin(); seg != TrajCont->end(); seg++){      
+      COMET::IG4Trajectory traj = (*seg).second;      
+      /*------  Primary Particle -----*/                 
+      if (traj.GetTrackId() == 1){
+	TVector3 iniPos = traj.GetInitialPosition().Vect()*(1/unit::cm);
+	TVector3 iniMom = traj.GetInitialMomentum().Vect()*(1/unit::MeV);	
+	fGenTrX=iniPos(0);
+	fGenTrY=iniPos(1);
+	fGenTrZ=iniPos(2);
+	fGenTrT=traj.GetInitialPosition()(3);	
+	fGenTrPx=iniMom(0);
+	fGenTrPy=iniMom(1);
+	fGenTrPz=iniMom(2);
+	fGenTrE=traj.GetInitialMomentum()(3);	      
+      }
+    }
+  }
+      
   COMET::IChannelId tmpchanId;
 
   if (hitHandle){
@@ -63,13 +89,18 @@ void ITracking::LoadMCHits(COMET::IHandle<COMET::IHitSelection> hitHandle){
       TVector3 wireend0(wireMes[0],wireMes[1],wireMes[2]);	
       TVector3 wireend1(wireMes[3],wireMes[4],wireMes[5]);
       Double_t Drfit = (*hitSeg)->GetDriftDistance();
-      if(!COMET::IGeomInfo::DetectorSolenoid().GetDetPositionInDSCoordinate(wireend0, wireend0)){
-	continue;
-	std::cout << "MisIdentifided wire is detected" << std::endl;}
-      if(!COMET::IGeomInfo::DetectorSolenoid().GetDetPositionInDSCoordinate(wireend1, wireend1)){
-	continue;
-	std::cout << "MisIdentifided wire is detected" << std::endl;}
+
+      ////////////////////////////////////////////////////////
       
+      //if(!COMET::IGeomInfo::DetectorSolenoid().GetDetPositionInDSCoordinate(wireend0, wireend0)){
+      //	continue;
+      //	std::cout << "MisIdentifided wire is detected" << std::endl;}
+      //if(!COMET::IGeomInfo::DetectorSolenoid().GetDetPositionInDSCoordinate(wireend1, wireend1)){
+      //	continue;
+      //	std::cout << "MisIdentifided wire is detected" << std::endl;}
+      
+      ////////////////////////////////////////////////////////
+
       int layer = COMET::IGeomInfo::Get().CDC().GetLayer(wire);
       int fWireMaxLayerId;
       if (fWireMaxLayerId<layer){
@@ -119,6 +150,7 @@ void ITracking::LoadMCHits(COMET::IHandle<COMET::IHitSelection> hitHandle){
 	fWireLayerId[fnCALCDCHit]=layer;
 	fWireId[fnCALCDCHit]=wireid;
       }
+      
     }
   }
 }
@@ -128,6 +160,15 @@ void ITracking::PrintMCStatus(){
 }
 
 void ITracking::Clear(){
+  fGenTrX=0;
+  fGenTrY=0;
+  fGenTrZ=0;
+  fGenTrT=0;
+  fGenTrPx=0;
+  fGenTrPy=0;
+  fGenTrPz=0;
+  fGenTrE=0;
+
   fnCALCDCHit=0;
   memset(fDriftDist,0,sizeof(fDriftDist));
   memset(fCDCCharge,0,sizeof(fCDCCharge));
@@ -138,8 +179,9 @@ void ITracking::Clear(){
   memset(fWireEnd1Y,0,sizeof(fWireEnd1Y));  
   memset(fWireEnd1Z,0,sizeof(fWireEnd1Z));  
   memset(fWireLayerId,0,sizeof(fWireLayerId));  
-  memset(fWireId,0,sizeof(fWireId));  
+  memset(fWireId,0,sizeof(fWireId)); 
   fWireMaxLayerId=0;
+  memset(fReco,0,sizeof(fReco));
 }
 
 int ITracking::Finish(){
