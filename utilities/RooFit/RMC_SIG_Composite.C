@@ -43,7 +43,7 @@ void RMC_SIG_Composite(){
   ///////////////////
 
   /* branching ratios */
-  Double_t SIGBr=17*TMath::Power(10,-13); // Set to current limit on mu->e+ conversion
+  Double_t SIGBr=8*TMath::Power(10,-13); // Set to current limit on mu->e+ conversion
   Double_t RMCBr=6.22*TMath::Power(10,-7);
 
   /* common variables */
@@ -90,7 +90,7 @@ void RMC_SIG_Composite(){
   // RMC component
   
   /* Nedd to determine exponential variable of rmc distribution */
-  Double_t rmcNum=protonNum*muonStopRate*RMCBr*PairCreationProb*VinTProb*ECut*eff*2; //factor 2 from internal conversion
+  Double_t rmcNum=protonNum*muonStopRate*RMCBr*PairCreationProb*VinTProb*ECut*eff; //*2; //factor 2 from internal conversion
   RooRealVar expConst("expConst", "exponential component of RMC", -0.37, -0.39, -0.35);
   //RooRealVar expConst("expConst", "exponential component of RMC", -0.45, -0.60, -0.34);
   RooRealVar linConst("linConst", "linear compenent of RMC", 0.1, 0.1 , 0.2);
@@ -218,7 +218,7 @@ void RMC_SIG_Composite(){
 
   /* Set up Model with ProfileLikelihoodCalculator */
     
-  /*  
+   
   ModelConfig model;
   RooWorkspace* wks = new RooWorkspace("wks");
   wks->import(modelPdf);
@@ -255,6 +255,6 @@ void RMC_SIG_Composite(){
     
   //MakePlots(wks);
   delete wks;  
-*/  
+
   
 }

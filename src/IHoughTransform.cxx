@@ -56,7 +56,16 @@ bool ifInsideBand(double x, double y, double cX, double cY, double outerR, doubl
 bool ifInsideVec(int element, std::vector<int> vec);
 Int_t findMaxPoint(std::vector<Int_t> vec);
 
-IHoughTransform::IHoughTransform(const char* name = "IHoughTransform", const char* title="houghtransform"):ITracking(name,title)
+IHoughTransform::IHoughTransform(const char* name = "IHoughTransform", const char* title="houghtransform")
+  :ITracking(name,title),
+   fnIter(3),
+   fnBins(100),
+   fnPt(300.0),
+   fRhoMax(0.02),
+   fRhoMin(-0.02),
+   fBandWidth(8),
+   fRadUncertainty(5),
+   fRef(std::make_pair(0,0))
 {;}
 IHoughTransform::~IHoughTransform(){;}
 
@@ -89,6 +98,9 @@ void IHoughTransform::GetLocalCoordinate(){
     if(!COMET::IGeomInfo::DetectorSolenoid().GetDetPositionInDSCoordinate(wireend1, wireend1)){
       continue;
       std::cout << "MisIdentifided wire is detected" << std::endl;}
+    fWireEnd0X[i_hit]=wireend1(0);
+    fWireEnd0Y[i_hit]=wireend1(1);
+    fWireEnd0Z[i_hit]=wireend1(2);
   }  
 }
 
@@ -146,7 +158,29 @@ std::vector<std::pair<double,double> > IHoughTransform::MakeOrigins(double rad_u
   return origins;
 }
 
+bool IHoughTransform::PreTrackCut(){
+  
+  Bool_t ifThereisOddhit=0;
+  Bool_t ifThereisEvenhit=0;
+  if (fnCALCDCHit<2) return 0; // Require At least more than 2 hits
+
+
+  //std::cout << fnCALCDCHit << std::endl;
+  for (Int_t i_layer=0; i_layer<fnCALCDCHit; i_layer++){      
+    if ((fWireLayerId[i_layer]+1)%2==0) {ifThereisEvenhit=1;}
+    else if ((fWireLayerId[i_layer]+1)%2==1) {ifThereisOddhit=1;}
+  }
+  
+  if (ifThereisEvenhit==0 || ifThereisOddhit==0) return 0; // Require At least one hit at odd and even layer
+  return 1;
+}
+
 void IHoughTransform::Process(){
+
+  GetLocalCoordinate();
+  SortHits();
+  ConfigureHitClusters();
+
   Int_t deg_index;    
   Int_t rho_index;
   Int_t do_not_use;
@@ -157,6 +191,8 @@ void IHoughTransform::Process(){
   Int_t deg_odd_index;
   Int_t rho_odd_index;
   std::pair <Double_t,Double_t> ref_odd;
+  TH2F *ref_even_dist = new TH2F("ref_even_dist", "ref_even_dist", 10, -10, 10, 10, -10, 10);
+  TH2F *ref_odd_dist = new TH2F("ref_odd_dist", "ref_odd_dist", 10, -10, 10, 10, -10, 10);
   
   Double_t radUncertainty = fRadUncertainty;
   std::pair <Double_t, Double_t> ref = fRef;
@@ -167,7 +203,7 @@ void IHoughTransform::Process(){
       std::vector<std::pair<Double_t,Double_t> > origins = MakeOrigins(radUncertainty,ref);     
       std::vector<Int_t> vote_max;
       std::vector<std::pair<Int_t,Int_t> > index_vec; 
-      /*
+      
       for (Int_t it=0; it<origins.size(); it++){
 	
 	Double_t oriX=origins[it].first; 
@@ -176,7 +212,7 @@ void IHoughTransform::Process(){
 	if  (ifInsideDisk(oriX,oriY)==0){
 	  vote_max.push_back(0);
 	}	
-	
+       
 	else if (ifInsideDisk(oriX,oriY)==1){
 	  
 	  ///////////////////////////////////////
@@ -184,11 +220,15 @@ void IHoughTransform::Process(){
 	  ///////////////////////////////////////
 	  
 	  memset(fConfX,0,sizeof(fConfX));
-	  memset(fConfY,0,sizeof(fConfY));	    
+	  memset(fConfY,0,sizeof(fConfY));	    	  
 	  
 	  for (Int_t i_hit=0; i_hit<fnCALCDCHit ; i_hit++){   
 	    fConfX[i_hit] = ConfTransX(fWireEnd0X[i_hit]-oriX,fWireEnd0Y[i_hit]-oriY);
-	    fConfY[i_hit] = ConfTransY(fWireEnd0X[i_hit]-oriX,fWireEnd0Y[i_hit]-oriY);
+	    fConfY[i_hit] = ConfTransY(fWireEnd0X[i_hit]-oriX,fWireEnd0Y[i_hit]-oriY);	    
+
+	    //std::cout << fWireEnd0X[i_hit] << "   " << fWireEnd0Y[i_hit] << "   " << fWireEnd0Z[i_hit] << std::endl;
+	    //std::cout << fConfX[i_hit] << "   " << fConfY[i_hit] << "   "  << std::endl;	   
+
 	  }
 	  	  
 	  ////////////////////////////////////////////
@@ -196,8 +236,10 @@ void IHoughTransform::Process(){
 	  ////////////////////////////////////////////
 	  
 	  Bool_t if_already_vote[fnBins][fnBins][2];
-	  TH2F *vote = new TH2F("vote_even", "vote_even", fnBins, 0, fnBins, fnBins, 0, fnBins);     
+	  TH2D *vote = new TH2D("vote_even", "vote_even", fnBins, 0, fnBins, fnBins, 0, fnBins);     
 	  
+	  //std::cout << "nCALCDCHit " << fnCALCDCHit << std::endl;
+
 	  for (Int_t i_hit=0; i_hit<fnCALCDCHit; i_hit++){
 	    memset(if_already_vote,0,sizeof(if_already_vote));
 	    for (Int_t i_Pt=0 ; i_Pt<fnPt; i_Pt++){
@@ -207,32 +249,44 @@ void IHoughTransform::Process(){
 	      Int_t tmp_deg_index = (deg)*fnBins/180;
 	      Int_t tmp_rho_index = (rho+fRhoMax)*fnBins/(fRhoMax-fRhoMin);
 	      
+
 	      if (is_even==fWireLayerId[i_hit]%2 && if_already_vote[tmp_deg_index][tmp_rho_index][0]==0){
 		if_already_vote[tmp_deg_index][tmp_rho_index][0]=1;
 		vote->Fill(tmp_deg_index,tmp_rho_index);
+
+		//std::cout << tmp_deg_index << "   " << tmp_rho_index << std::endl;
+		//std::cout << "Filled" << std::endl;
 	      }	      
 	    }
-	  }
+	  }	  
+
+	  //std::cout << vote->GetMaximumBin() << std::endl;
+	  //std::cout << vote->GetBinContent(vote->GetMaximumBin()) << std::endl;
+	  //std::cout << vote->GetMaximum() << std::endl;
 	  
 	  vote_max.push_back(vote->GetMaximum());	      
 	  vote->GetMaximumBin(deg_index, rho_index, do_not_use);
 	  index_vec.push_back(std::make_pair(deg_index,rho_index));
-	  delete vote;
 	  
+	  delete vote;	  
 	}
-      }
+      }           
       
-     
+   
       Int_t maxIndex=findMaxPoint(vote_max);
+      //std::cout << "maxIndex: " <<  maxIndex << std::endl;
+
       ref.first = origins[maxIndex].first; 
       ref.second = origins[maxIndex].second;
-      
-
+            
       if (is_even==1){	  
 	ref_even.first = ref.first; 
 	ref_even.second = ref.second;
 	deg_even_index = index_vec[maxIndex].first; 
-	rho_even_index = index_vec[maxIndex].second;		
+	rho_even_index = index_vec[maxIndex].second;
+	
+	if (it2==fnIter-1){
+	  ref_even_dist->Fill(ref_even.first,ref_even.second);}	
       }
       
       else if (is_even==0){
@@ -240,18 +294,29 @@ void IHoughTransform::Process(){
 	ref_odd.second = ref.second;
 	deg_odd_index = index_vec[maxIndex].first; 
 	rho_odd_index = index_vec[maxIndex].second;
-      }
-            
+	
+	if (it2==fnIter-1){
+	  ref_odd_dist->Fill(ref_odd.first,ref_odd.second);}	
+      }      
       radUncertainty = radUncertainty/2.0;
-      */
+      
     }
   }
+
+  std::cout << ref_even.first << "  " << ref_even.second << std::endl;
+  std::cout << ref_odd.first  << "  " << ref_odd.second  << std::endl;
+
+  delete ref_even_dist;
+  delete ref_odd_dist;
 }
 
 void IHoughTransform::GetMasterCoordinate(){
   
 }
 
+void IHoughTransform::PrintMCStatus(){
+  ITracking::PrintMCStatus();
+}
 
 int IHoughTransform::Finish(){
   return 1;

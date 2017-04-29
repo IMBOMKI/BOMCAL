@@ -24,7 +24,7 @@ path_prepend LD_LIBRARY_PATH "../Linux-x86_64"
 
 application SIGInfo       ../app/SIGInfo.cxx
 application BunchInfo       ../app/BunchInfo.cxx
-application RunMCTrigger ../app/RunMCTrigger.cxx
+application RunAnalysis ../app/RunAnalysis.cxx
 
 macro register_dependencies version
 #macro rootcint_dependencies register

@@ -89,6 +89,7 @@ public:
   }
 
   void SetHoughTransformVariables(int nIter, int nBins, double nPt, double rhoMax, double rhoMin, int bandWidth, double rad_uncertainty, double refX, double refY);
+  bool PreTrackCut();
   void GetLocalCoordinate();
   void SortHits(); 
   void ConfigureHitClusters();
@@ -98,7 +99,7 @@ public:
   std::vector<std::pair<double,double> > MakeOrigins(double rad_uncertainty, std::pair<double,double> ref);
   void Process();
   void GetMasterCoordinate();
-
+  void PrintMCStatus();
 
   /// called at the end of run or else (should not be in event-by-event)
   int  Finish();

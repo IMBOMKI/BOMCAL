@@ -27,7 +27,10 @@
 #include <ICDCGeom.hxx>
 
 IMCTrigger::IMCTrigger(const char* name = "IMCTrigger", const char* title="mctrigger")
-:fStartT(700), fEndT(1170), fCTHSegNum(64)
+:fStartT(700), 
+  fEndT(1170), 
+  fCTHSegNum(64), 
+  fShift(1)
 {;}
 IMCTrigger::~IMCTrigger(){;}
 
@@ -387,10 +390,6 @@ void IMCTrigger::ApplyShiftCondition(int Module, int shift){
 void IMCTrigger::PrintResults(){
 
   if (fPairCandidates.size()>0){    
-    std::cout << "///////////////////////////////////////" << std::endl;
-    std::cout << "/// MC Trigger Coincidence Analysis ///" << std::endl;
-    std::cout << "///////////////////////////////////////" << std::endl;
-    std::cout << std::endl;
     std::cout << "----- Pair Candidates -----" << std::endl;
     for (int i_cand=0; i_cand<fPairCandidates.size(); i_cand++){
       std::vector< int > ScintCandidate  = fPairCandidates.at(i_cand).first;

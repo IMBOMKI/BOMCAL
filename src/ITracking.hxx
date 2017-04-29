@@ -34,7 +34,7 @@ protected:
   double fGenTrPz;
   double fGenTrE;
 
-  int    fnCALCDCHit=0;
+  int    fnCALCDCHit;
   double fDriftDist[10000];
   int    fCDCCharge[10000];
   double fWireEnd0X[10000];

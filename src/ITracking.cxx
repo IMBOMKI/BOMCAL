@@ -3,6 +3,7 @@
 #include "HEPUnits.hxx"
 #include <vector>
 #include <iostream>
+#include <string>
 
 #include <IOADatabase.hxx>
 #include <IReconBase.hxx>
@@ -26,11 +27,14 @@
 #include <IChannelId.hxx>
 #include <IGeometryDatabase.hxx>
 #include <ICDCGeom.hxx>
+#include <ICDCChannelMap.hxx>
+#include <ICDCWireManager.hxx>
 
 #include <TGeoManager.h>
 #include <TGeoNode.h>
 
 ITracking::ITracking(const char* name = "ITracking", const char* title="tracking")
+:fnCALCDCHit(0)
 {;}
 ITracking::~ITracking(){;}
 
@@ -45,6 +49,8 @@ int ITracking::Init()
 void ITracking::LoadMCHits(COMET::IHandle<COMET::IHitSelection> hitHandle, COMET::IHandle<COMET::IG4TrajectoryContainer> trajectories){
 
   TGeoManager* geom = COMET::IOADatabase::Get().Geometry();
+  COMET::ICDCWireManager* WireManager = new COMET::ICDCWireManager();
+
   COMET::IG4TrajectoryContainer *TrajCont = GetPointer(trajectories);
   
   if(TrajCont->empty()){
@@ -75,13 +81,21 @@ void ITracking::LoadMCHits(COMET::IHandle<COMET::IHitSelection> hitHandle, COMET
 
   if (hitHandle){
     COMET::IHitSelection *hits = GetPointer(hitHandle);
-    
+  
     for (COMET::IHitSelection::const_iterator hitSeg = hits->begin(); hitSeg != hits->end(); hitSeg++){
       
-      COMET::IChannelId chanId = (*hitSeg)->GetChannelId();
-      COMET::IGeometryId geomId = (*hitSeg)->GetGeomId();
-      int wire = COMET::IGeomInfo::Get().CDC().GeomIdToWire(geomId);
-      
+      COMET::IChannelId chanId = (*hitSeg)->GetChannelId();      
+      COMET::IGeometryId geomId = (*hitSeg)->GetGeomId();      
+
+      //std::cout << geomId.GetName()  << "   " << geomId.GetSubsystemName() << "   " << geomId.AsInt() << std::endl;
+      //std::cout << COMET::GeomId::CDC::IsActiveSenseWire(geomId) << std::endl;
+      //std::cout << COMET::GeomId::CDC::GetWireId(geomId,sense,active) << std::endl;
+
+      int sense=-1; int active=-1;
+      int wire = COMET::GeomId::CDC::GetWireId(geomId,sense,active);
+
+      //std::cout << wire << std::endl;
+            
       TVectorD wireMes(7);
       wireMes[0] = COMET::IGeomInfo::Get().CDC().GetWireEnd0(wire).X();
       wireMes[1] = COMET::IGeomInfo::Get().CDC().GetWireEnd0(wire).Y();
@@ -93,7 +107,6 @@ void ITracking::LoadMCHits(COMET::IHandle<COMET::IHitSelection> hitHandle, COMET
       
       TVector3 wireend0(wireMes[0],wireMes[1],wireMes[2]);	
       TVector3 wireend1(wireMes[3],wireMes[4],wireMes[5]);
-      Double_t Drfit = (*hitSeg)->GetDriftDistance();
 
       int layer = COMET::IGeomInfo::Get().CDC().GetLayer(wire);
       int fWireMaxLayerId;
@@ -108,6 +121,8 @@ void ITracking::LoadMCHits(COMET::IHandle<COMET::IHitSelection> hitHandle, COMET
 	std::cout << "Not SenseWire" << std::endl;
       }
       
+      //std::cout <<  "X Pos: " << wireMes[0] << std::endl;
+
       ///////////////////////////CALIBRATED HIT//////////////////////////////////////                
       
       if (hitSeg == hits->begin()){
@@ -131,6 +146,7 @@ void ITracking::LoadMCHits(COMET::IHandle<COMET::IHitSelection> hitHandle, COMET
       
       // When the next hit generates at another Channel Id                                           
       else if (chanId != tmpchanId){
+
 	tmpchanId = chanId;
 	fnCALCDCHit++;
 	fCDCCharge[fnCALCDCHit]++;
@@ -149,7 +165,10 @@ void ITracking::LoadMCHits(COMET::IHandle<COMET::IHitSelection> hitHandle, COMET
 }
 
 void ITracking::PrintMCStatus(){
-  std::cout << "Print Something..." << std::endl;
+  std::cout << "----- MC Status -----" << std::endl;
+  std::cout << "Number Of Hits: " << fnCALCDCHit << std::endl;
+  std::cout << "Initial Energy: " << fGenTrE << std::endl;
+  std::cout << std::endl;
 }
 
 int ITracking::Finish(){
