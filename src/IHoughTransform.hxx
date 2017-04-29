@@ -23,7 +23,11 @@
 
 class IHoughTransform: public ITracking {
 private:
+  /*** Trigger Information ***/
+  std::vector < std::pair < std::vector< int >, std::vector< int> > > fPairCandidates;
+
   /*** Geometry Variables ***/
+  int    fCTHSegNum=64;
   int    fNumOfLayers=18;
   double fScintRad=48.28;
   double fScintWidth=9.;
@@ -43,6 +47,7 @@ private:
   ={-67.004, 66.778, -66.553, 66.327, -66.102, 65.877, -65.652, 65.428, -65.205, 64.982, -64.761, 64.540, -64.319, 64.100, -74.472, 74.220, -73.969, 73.719}; // Up to now, we use this one...
   //double fZOffset[18]
   //={-73.6843, -73.9348,-74.2353,-74.5358, -74.7863, -75.0868, 0,0,0,0,0,0,0,0,0,0,0,0};
+  
 
   /*** HoughTransform Variables ***/
   int fnIter;
@@ -57,13 +62,13 @@ private:
   /*** Hit Variables ***/
   int fnEvenhits=0;
   int fnOddhits=0;    
-  double fWireEnd0X_even[30000];
-  double fWireEnd0Y_even[30000];  
-  double fWireEnd0X_odd[30000];
-  double fWireEnd0Y_odd[30000];
+  double fWireEnd0X_even[10000];
+  double fWireEnd0Y_even[10000];  
+  double fWireEnd0X_odd[10000];
+  double fWireEnd0Y_odd[10000];
   
-  double fConfX[30000];
-  double fConfY[30000];
+  double fConfX[10000];
+  double fConfY[10000];
   
   int fnConfEven=0;
   int fnConfOdd=0;
@@ -71,12 +76,43 @@ private:
   double fConfX_odd[3000];
   double fConfY_even[3000];
   double fConfY_odd[3000];
-
   
   std::vector<Int_t> fWireIdsPerLayer[18];
   std::vector< std::vector <Int_t> > fTmpClusterSet;
   std::vector< std::vector <Int_t> > fClusterSet;
-    
+
+  /*** Process Varaibles ***/
+  std::pair <Double_t,Double_t> fRef_even;
+  std::pair <Double_t,Double_t> fRef_odd;
+  double fCx_even;
+  double fCy_even;
+  double fCx_odd;
+  double fCy_odd;
+  double fRad_even;
+  double fRad_odd;
+  double fFitpT;
+  double fTruthpT;
+  double fOuterR_even;
+  double fInnerR_even;
+  double fOuterR_odd;
+  double fInnerR_odd;
+
+  int    fnRecoHit;
+  double fRecoWireEnd0X[10000];
+  double fRecoWireEnd0Y[10000];
+  double fRecoWireEnd0Z[10000];
+  double fRecoWireEnd1X[10000];
+  double fRecoWireEnd1Y[10000];
+  double fRecoWireEnd1Z[10000];
+  double fRecoDriftDist[10000];
+  int    fRecoWireLayerId[10000];
+  int    fRecoWireId[10000];
+  int    fReco2DCharge;
+  bool   fRecoCL3;
+  int    fRecoMaxWireLayerId;
+
+
+
 public:
   IHoughTransform(const char*name, const char* title);
   virtual ~IHoughTransform();
@@ -86,8 +122,10 @@ public:
 
   void LoadMCHits(COMET::IHandle<COMET::IHitSelection> hitHandle, COMET::IHandle<COMET::IG4TrajectoryContainer> trajectories){
     ITracking::LoadMCHits(hitHandle, trajectories);
+  }  
+  void ImportTriggerInfo(std::vector < std::pair < std::vector< int >, std::vector< int > > > PairCandidates){
+    fPairCandidates = PairCandidates;
   }
-
   void SetHoughTransformVariables(int nIter, int nBins, double nPt, double rhoMax, double rhoMin, int bandWidth, double rad_uncertainty, double refX, double refY);
   bool PreTrackCut();
   void GetLocalCoordinate();
@@ -95,11 +133,17 @@ public:
   void ConfigureHitClusters();
   double ConfTransX(double x, double y) { return x/(pow(x,2)+pow(y,2));}
   double ConfTransY(double x, double y) { return y/(pow(x,2)+pow(y,2));}
-  double HoughTrans(double x, double y, double theta) { return x*TMath::Cos(theta*TMath::Pi()/180)+y*TMath::Sin(theta*TMath::Pi()/180);}
+  double HoughTrans(double x, double y, double theta){ return x*TMath::Cos(theta*TMath::Pi()/180)+y*TMath::Sin(theta*TMath::Pi()/180);}
   std::vector<std::pair<double,double> > MakeOrigins(double rad_uncertainty, std::pair<double,double> ref);
   void Process();
+  void RecognizeHits();
+  bool GetCL3()            {return fRecoCL3;}
+  int  GetMaxWireLayerId() {return fRecoMaxWireLayerId;}
+  int  Get2DCharge()       {return fReco2DCharge;}
+  void DrawEvent();
   void GetMasterCoordinate();
   void PrintMCStatus();
+  void PrintResults();
 
   /// called at the end of run or else (should not be in event-by-event)
   int  Finish();

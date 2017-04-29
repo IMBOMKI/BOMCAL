@@ -43,15 +43,25 @@ public:
   
   bool operator () (COMET::ICOMETEvent& event) {
 
+
+    int EventId;
     
+    /******** Trigger *******/
+    bool FourFoldCoincidence;
+    std::vector < std::pair < std::vector< int >, std::vector< int> > > PairCandidates;
+    
+    /******** Tracking ********/
+    bool RecoCL3;
+    int  Reco2DCharge;
+    int  RecoMaxWireLayerId;
 
     ////////////////////////////////////////////////////
     //////     SimG4/SimDetResp Information      ///////               
     ////////////////////////////////////////////////////
     
-    fEventId = event.GetEventId();
+    EventId = event.GetEventId();
 
-    std::cout << "*Event Id: " << fEventId << std::endl;
+    std::cout << "*Event Id: " << EventId << std::endl;
     std::cout <<  std::endl;
 
     COMET::IOADatabase::Get().Geometry();
@@ -65,36 +75,43 @@ public:
     //////         Analysis Class Object         ///////               
     ////////////////////////////////////////////////////
 
-    fMCTrigger = new IMCTrigger("mctrigger", "MC trigger");
-    fHoughTransform = new IHoughTransform("houghtransform","Hough Transform");
+    IMCTrigger* MCTrigger = new IMCTrigger("mctrigger", "MC trigger");
+    IHoughTransform* HoughTransform = new IHoughTransform("houghtransform","Hough Transform");
 
     ////////////////////////////////////////////////////
     //////              Trigger                  ///////               
     ////////////////////////////////////////////////////
     
-    fMCTrigger->MakeCTHMap(CTHHits, Trajectories);
+    MCTrigger->MakeCTHMap(CTHHits, Trajectories);
     //fMCTrigger->SetMCTriggerVariable(1); // Set shift tolerance
-    fMCTrigger->Process();
-    fFourFoldCoincidence = fMCTrigger->GetFourFoldCoincidence();
-    fPairCandidates = fMCTrigger->GetPairCandidates();
-    fMCTrigger->PrintResults();
+    MCTrigger->Process();
+    FourFoldCoincidence = MCTrigger->GetFourFoldCoincidence();
+    PairCandidates = MCTrigger->GetPairCandidates();
+    MCTrigger->PrintResults();
     
     ////////////////////////////////////////////////////
     //////              Tracking                 ///////               
     ////////////////////////////////////////////////////
 
-    fHoughTransform->LoadMCHits(CDCHits_DetResp, Trajectories);
-    fHoughTransform->PrintMCStatus();    
+    HoughTransform->LoadMCHits(CDCHits_DetResp, Trajectories);
+    HoughTransform->PrintMCStatus();    
 
-    if (fFourFoldCoincidence==1 && fHoughTransform->PreTrackCut()==1) {     
+    if (FourFoldCoincidence==1 && HoughTransform->PreTrackCut()==1) {     
+      HoughTransform->ImportTriggerInfo(PairCandidates);
       //fHoughTransform->SetHoughTransformVariables(3,100,300.0,0.02,-0.02,8,5,0,0);
-      fHoughTransform->Process();      
+      HoughTransform->Process();      
+      HoughTransform->RecognizeHits();
+
+      RecoCL3           =HoughTransform->GetCL3();
+      Reco2DCharge      =HoughTransform->Get2DCharge();
+      RecoMaxWireLayerId=HoughTransform->GetMaxWireLayerId();      
+      HoughTransform->PrintResults();
       fCoincidenceCount++;
     }
     
 
-    delete fMCTrigger;
-    delete fHoughTransform;
+    delete MCTrigger;
+    delete HoughTransform;
     return true;
   }
   
@@ -108,20 +125,9 @@ private:
 
   std::string fOutputDir;
   std::string fFileName;
-  std::string fFileMode;
+  std::string fFileMode;  
 
-
-  int fEventId;
-
-  /******** Trigger *******/
-  IMCTrigger* fMCTrigger;
-  bool fFourFoldCoincidence;
-  std::vector < std::pair < std::vector< int >, std::vector< int> > > fPairCandidates;
-  int fCoincidenceCount;
- 
-  /******** Tracking ********/
-  IHoughTransform* fHoughTransform;
-  
+  int fCoincidenceCount=0;
 };
 
 int main(int argc, char **argv) {

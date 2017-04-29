@@ -54,7 +54,10 @@ void MakeCluster(std::vector<int> &WireIds, std::vector<std::vector< int> > &Clu
 bool ifInsideDisk(double x, double y);
 bool ifInsideBand(double x, double y, double cX, double cY, double outerR, double interR);
 bool ifInsideVec(int element, std::vector<int> vec);
+bool ifInsideArray(Int_t wireid, Int_t *reco_ids, Int_t arr_size);
 Int_t findMaxPoint(std::vector<Int_t> vec);
+std::pair<Double_t, Double_t> getRotatedXY(std::pair<Double_t, Double_t> xy, Double_t deg);
+Bool_t ifCircleIsPassing(Double_t rad, Double_t cX, Double_t cY, std::pair<Double_t, Double_t> ref1, std::pair<Double_t, Double_t> ref2);
 
 IHoughTransform::IHoughTransform(const char* name = "IHoughTransform", const char* title="houghtransform")
   :ITracking(name,title),
@@ -65,7 +68,8 @@ IHoughTransform::IHoughTransform(const char* name = "IHoughTransform", const cha
    fRhoMin(-0.02),
    fBandWidth(8),
    fRadUncertainty(5),
-   fRef(std::make_pair(0,0))
+   fRef(std::make_pair(0,0)),
+   fnRecoHit(0)
 {;}
 IHoughTransform::~IHoughTransform(){;}
 
@@ -187,12 +191,8 @@ void IHoughTransform::Process(){
   
   Int_t deg_even_index; 
   Int_t rho_even_index;
-  std::pair <Double_t,Double_t> ref_even;
   Int_t deg_odd_index;
   Int_t rho_odd_index;
-  std::pair <Double_t,Double_t> ref_odd;
-  TH2F *ref_even_dist = new TH2F("ref_even_dist", "ref_even_dist", 10, -10, 10, 10, -10, 10);
-  TH2F *ref_odd_dist = new TH2F("ref_odd_dist", "ref_odd_dist", 10, -10, 10, 10, -10, 10);
   
   Double_t radUncertainty = fRadUncertainty;
   std::pair <Double_t, Double_t> ref = fRef;
@@ -249,7 +249,6 @@ void IHoughTransform::Process(){
 	      Int_t tmp_deg_index = (deg)*fnBins/180;
 	      Int_t tmp_rho_index = (rho+fRhoMax)*fnBins/(fRhoMax-fRhoMin);
 	      
-
 	      if (is_even==fWireLayerId[i_hit]%2 && if_already_vote[tmp_deg_index][tmp_rho_index][0]==0){
 		if_already_vote[tmp_deg_index][tmp_rho_index][0]=1;
 		vote->Fill(tmp_deg_index,tmp_rho_index);
@@ -280,34 +279,375 @@ void IHoughTransform::Process(){
       ref.second = origins[maxIndex].second;
             
       if (is_even==1){	  
-	ref_even.first = ref.first; 
-	ref_even.second = ref.second;
+	fRef_even.first = ref.first; 
+	fRef_even.second = ref.second;
 	deg_even_index = index_vec[maxIndex].first; 
 	rho_even_index = index_vec[maxIndex].second;
-	
-	if (it2==fnIter-1){
-	  ref_even_dist->Fill(ref_even.first,ref_even.second);}	
       }
       
       else if (is_even==0){
-	ref_odd.first = ref.first; 
-	ref_odd.second = ref.second;
+	fRef_odd.first = ref.first; 
+	fRef_odd.second = ref.second;
 	deg_odd_index = index_vec[maxIndex].first; 
 	rho_odd_index = index_vec[maxIndex].second;
-	
-	if (it2==fnIter-1){
-	  ref_odd_dist->Fill(ref_odd.first,ref_odd.second);}	
       }      
-      radUncertainty = radUncertainty/2.0;
-      
+      radUncertainty = radUncertainty/2.0;      
     }
   }
 
-  std::cout << ref_even.first << "  " << ref_even.second << std::endl;
-  std::cout << ref_odd.first  << "  " << ref_odd.second  << std::endl;
+  Double_t deg_even_eval = 180.0/fnBins*(2*deg_even_index+1)/2;
+  Double_t rho_even_eval = fRhoMin+(fRhoMax-fRhoMin)/fnBins*(2*rho_even_index-1)/2;   
+  fCx_even = TMath::Cos(deg_even_eval*TMath::Pi()/180.0)/(2*rho_even_eval);
+  fCy_even = TMath::Sin(deg_even_eval*TMath::Pi()/180.0)/(2*rho_even_eval);
+  
+  Double_t deg_odd_eval = 180.0/fnBins*(2*deg_odd_index+1)/2;
+  Double_t rho_odd_eval = fRhoMin+(fRhoMax-fRhoMin)/fnBins*(2*rho_odd_index-1)/2;
+  fCx_odd = TMath::Cos(deg_odd_eval*TMath::Pi()/180.0)/(2*rho_odd_eval);
+  fCy_odd = TMath::Sin(deg_odd_eval*TMath::Pi()/180.0)/(2*rho_odd_eval);
+  fRad_even = sqrt(pow(fCx_even,2)+pow(fCy_even,2));
+  fRad_odd  = sqrt(pow(fCx_odd,2)+pow(fCy_odd,2));   
+  fFitpT    = (fRad_even/0.3356+fRad_odd/0.3356)/2;
+  fTruthpT  = sqrt(pow(fGenTrPy,2)+pow(fGenTrPz,2));
 
-  delete ref_even_dist;
-  delete ref_odd_dist;
+  std::cout << fRad_even << "   " << fRad_odd << std::endl;
+  std::cout << std::endl;
+
+}
+
+void IHoughTransform::RecognizeHits(){
+
+  /*-------------------------------------------------
+    |                                               |
+    |    Count Signal Hit Number in Circle Band     |
+    |                                               |
+    ------------------------------------------------*/
+
+  Int_t nRecoHit_even=0;
+  Int_t nRecoHit_odd=0;
+  Double_t RecoWireEnd0X_even[30000];
+  Double_t RecoWireEnd0Y_even[30000];
+  Double_t RecoWireEnd0X_odd[30000];
+  Double_t RecoWireEnd0Y_odd[30000];
+  fOuterR_even = fRad_even +  fBandWidth/2.0;
+  fInnerR_even = fRad_even -  fBandWidth/2.0;
+  fOuterR_odd  = fRad_odd  +  fBandWidth/2.0;
+  fInnerR_odd  = fRad_odd  -  fBandWidth/2.0;
+  
+  fRecoMaxWireLayerId=0;
+  
+  for (Int_t i_hit=0; i_hit<fnCALCDCHit; i_hit++){
+    if ((fWireLayerId[i_hit]+1)%2 == 0){ // even
+      if (ifInsideBand(fWireEnd0X[i_hit],fWireEnd0Y[i_hit],fCx_even+fRef_even.first,fCy_even+fRef_even.second,fOuterR_even,fInnerR_even)==1){
+	RecoWireEnd0X_even[nRecoHit_even]=fWireEnd0X[i_hit];
+	RecoWireEnd0Y_even[nRecoHit_even]=fWireEnd0Y[i_hit];
+	nRecoHit_even++;	   
+	
+	fRecoWireEnd0X[fnRecoHit]=fWireEnd0X[i_hit];
+	fRecoWireEnd0Y[fnRecoHit]=fWireEnd0Y[i_hit];
+	fRecoWireEnd0Z[fnRecoHit]=fWireEnd0Z[i_hit];
+	fRecoWireEnd1X[fnRecoHit]=fWireEnd1X[i_hit];
+	fRecoWireEnd1Y[fnRecoHit]=fWireEnd1Y[i_hit];
+	fRecoWireEnd1Z[fnRecoHit]=fWireEnd1Z[i_hit];
+	fRecoDriftDist[fnRecoHit]=fDriftDist[i_hit];
+	fRecoWireLayerId[fnRecoHit]=fWireLayerId[i_hit];
+	fRecoWireId[fnRecoHit]=fWireId[i_hit];
+	
+	if (fRecoWireLayerId[fnRecoHit]>fRecoMaxWireLayerId){
+	  fRecoMaxWireLayerId=fRecoWireLayerId[fnRecoHit];
+	}
+	fnRecoHit++;
+      }
+    }
+    else if ((fWireLayerId[i_hit]+1)%2 == 1){ // odd
+      if (ifInsideBand(fWireEnd0X[i_hit],fWireEnd0Y[i_hit],fCy_odd+fRef_odd.first,fCy_odd+fRef_odd.second,fOuterR_odd,fInnerR_odd)==1){
+	RecoWireEnd0X_odd[nRecoHit_odd]=fWireEnd0X[i_hit];
+	RecoWireEnd0Y_odd[nRecoHit_odd]=fWireEnd0Y[i_hit];
+	nRecoHit_odd++;
+	
+	fRecoWireEnd0X[fnRecoHit]=fWireEnd0X[i_hit];
+	fRecoWireEnd0Y[fnRecoHit]=fWireEnd0Y[i_hit];
+	fRecoWireEnd0Z[fnRecoHit]=fWireEnd0Z[i_hit];
+	fRecoWireEnd1X[fnRecoHit]=fWireEnd1X[i_hit];
+	fRecoWireEnd1Y[fnRecoHit]=fWireEnd1Y[i_hit];
+	fRecoWireEnd1Z[fnRecoHit]=fWireEnd1Z[i_hit];
+	fRecoDriftDist[fnRecoHit]=fDriftDist[i_hit];
+	fRecoWireLayerId[fnRecoHit]=fWireLayerId[i_hit];
+	fRecoWireId[fnRecoHit]=fWireId[i_hit];
+	
+	if (fRecoWireLayerId[fnRecoHit]>fRecoMaxWireLayerId){
+	  fRecoMaxWireLayerId=fRecoWireLayerId[fnRecoHit];
+	}
+	fnRecoHit++;
+      }
+    }		
+  }    
+
+  /*-----------------------------------------------------------
+    |                                                         |
+    |           Count Non-Recognized Hits in Cluster          |
+    |                                                         |
+    ----------------------------------------------------------*/
+  
+  std::vector <Int_t> WireIdsToBeReco;
+  
+  for (Int_t i_clu=0; i_clu<fClusterSet.size(); i_clu++){
+    Bool_t isItRecoCluster=0;
+    
+    for(Int_t i_ele=0; i_ele<fClusterSet[i_clu].size(); i_ele++){	  
+      if (ifInsideArray(fClusterSet[i_clu][i_ele], fRecoWireId, fnRecoHit)==1){
+	isItRecoCluster=1;
+	break;
+      }
+    }
+    
+    if (isItRecoCluster==1){
+      for(Int_t i_ele=0; i_ele<fClusterSet[i_clu].size(); i_ele++){	  
+	if (ifInsideArray(fClusterSet[i_clu][i_ele], fRecoWireId, fnRecoHit)==0){
+	  WireIdsToBeReco.push_back(fClusterSet[i_clu][i_ele]);
+	}
+      }
+    }
+  }
+  
+  //std::cout << "Num Of Ids to be Recognized: " << WireIdsToBeReco.size() << std::endl;
+  
+  for (Int_t i_hit=0; i_hit<fnCALCDCHit; i_hit++){
+    if (ifInsideVec(fWireId[i_hit],WireIdsToBeReco)==1){
+      
+      if ((fWireLayerId[i_hit]+1)%2 == 0){ // even
+	RecoWireEnd0X_even[nRecoHit_even]=fWireEnd0X[i_hit];
+	RecoWireEnd0Y_even[nRecoHit_even]=fWireEnd0Y[i_hit];
+	nRecoHit_even++;	   
+	
+	fRecoWireEnd0X[fnRecoHit]=fWireEnd0X[i_hit];
+	fRecoWireEnd0Y[fnRecoHit]=fWireEnd0Y[i_hit];
+	fRecoWireEnd0Z[fnRecoHit]=fWireEnd0Z[i_hit];
+	fRecoWireEnd1X[fnRecoHit]=fWireEnd1X[i_hit];
+	fRecoWireEnd1Y[fnRecoHit]=fWireEnd1Y[i_hit];
+	fRecoWireEnd1Z[fnRecoHit]=fWireEnd1Z[i_hit];
+	
+	fRecoDriftDist[fnRecoHit]=fDriftDist[i_hit];
+	fRecoWireLayerId[fnRecoHit]=fWireLayerId[i_hit];
+	fRecoWireId[fnRecoHit]=fWireId[i_hit];
+	
+	if (fRecoWireLayerId[fnRecoHit]>fRecoMaxWireLayerId){
+	  fRecoMaxWireLayerId=fRecoWireLayerId[fnRecoHit];
+	}
+	fnRecoHit++;
+	
+      }
+      else if ((fWireLayerId[i_hit]+1)%2 == 1){ // odd
+	RecoWireEnd0X_odd[nRecoHit_odd]=fWireEnd0X[i_hit];
+	RecoWireEnd0Y_odd[nRecoHit_odd]=fWireEnd0Y[i_hit];
+	nRecoHit_odd++;
+	
+	fRecoWireEnd0X[fnRecoHit]=fWireEnd0X[i_hit];
+	fRecoWireEnd0Y[fnRecoHit]=fWireEnd0Y[i_hit];
+	fRecoWireEnd0Z[fnRecoHit]=fWireEnd0Z[i_hit];
+	fRecoWireEnd1X[fnRecoHit]=fWireEnd1X[i_hit];
+	fRecoWireEnd1Y[fnRecoHit]=fWireEnd1Y[i_hit];
+	fRecoWireEnd1Z[fnRecoHit]=fWireEnd1Z[i_hit];
+	fRecoDriftDist[fnRecoHit]=fDriftDist[i_hit];
+	fRecoWireLayerId[fnRecoHit]=fWireLayerId[i_hit];
+	fRecoWireId[fnRecoHit]=fWireId[i_hit];
+	
+	if (fRecoWireLayerId[fnRecoHit]>fRecoMaxWireLayerId){
+	  fRecoMaxWireLayerId=fRecoWireLayerId[fnRecoHit];
+	}
+	fnRecoHit++;	    
+      }			  
+    } 
+  }  
+
+  /*--------------------
+    |                  |                                      
+    |    CL3 Check     |
+    |                  |
+    -------------------*/
+  
+  Double_t abs_cX_even=fCx_even+fRef_even.first;
+  Double_t abs_cY_even=fCy_even+fRef_even.second;
+  Double_t abs_cX_odd =fCx_odd  +fRef_odd.first;
+  Double_t abs_cY_odd =fCy_odd  +fRef_odd.second;      
+  std::vector< Int_t > domain1_layer;
+  std::vector< TVector3 > domain1_wireend0;
+  std::vector< TVector3 > domain1_wireend1;
+  std::vector< Int_t > domain2_layer;
+  std::vector< TVector3 > domain2_wireend0;
+  std::vector< TVector3 > domain2_wireend1;
+  
+  Double_t slope_even = fCy_even/fCx_even;
+  Double_t slope_odd  = fCy_odd/fCx_odd;
+  
+  for (Int_t i_reco=0; i_reco<fnRecoHit; i_reco++){
+    TVector3 wireend0(fRecoWireEnd0X[i_reco],fRecoWireEnd0Y[i_reco],fRecoWireEnd0Z[i_reco]);
+    TVector3 wireend1(fRecoWireEnd1X[i_reco],fRecoWireEnd1Y[i_reco],fRecoWireEnd1Z[i_reco]);
+    
+    if ((fRecoWireLayerId[i_reco]+1)%2 == 0){ //even
+      
+      Double_t cross=fRecoWireEnd0X[i_reco]*abs_cY_even-fRecoWireEnd0Y[i_reco]*abs_cX_even;
+      Double_t LHS  =fRecoWireEnd0Y[i_reco];
+      Double_t RHS  =slope_even*(fRecoWireEnd0X[i_reco]-abs_cX_even)+abs_cY_even;
+      if (cross<=0){
+	domain1_layer.push_back(fRecoWireLayerId[i_reco]);
+	domain1_wireend0.push_back(wireend0);
+	domain1_wireend1.push_back(wireend1);
+      }
+      else if (cross>0){
+	domain2_layer.push_back(fRecoWireLayerId[i_reco]);
+	domain2_wireend0.push_back(wireend0);
+	domain2_wireend1.push_back(wireend1);
+      }
+    }
+    
+    else if ((fRecoWireLayerId[i_reco]+1)%2 == 1){ //odd
+      Double_t cross=fRecoWireEnd0X[i_reco]*abs_cY_even-fRecoWireEnd0Y[i_reco]*abs_cX_even;
+      Double_t LHS  =fRecoWireEnd0Y[i_reco];
+      Double_t RHS  =slope_odd*(fRecoWireEnd0X[i_reco]-abs_cX_odd)+abs_cY_odd;
+      if (cross<=0){
+	domain1_layer.push_back(fRecoWireLayerId[i_reco]);
+	domain1_wireend0.push_back(wireend0);
+	domain1_wireend1.push_back(wireend1);
+      }
+      else if (cross>0){
+	domain2_layer.push_back(fRecoWireLayerId[i_reco]);
+	domain2_wireend0.push_back(wireend0);
+	domain2_wireend1.push_back(wireend1);
+      }
+    }
+  }
+
+  fRecoCL3=0;
+  
+  if (ifInsideVec(0,domain1_layer)==1 && ifInsideVec(1,domain1_layer)==1 && ifInsideVec(2,domain1_layer)==1){
+    if (ifInsideVec(0,domain2_layer)==1 && ifInsideVec(1,domain2_layer)==1 && ifInsideVec(2,domain2_layer)==1){
+      fRecoCL3=1;
+    }
+  }
+
+  /*--------------------------------
+    |                              |
+    |    Charge Identification     |
+    |                              |
+    -------------------------------*/
+     
+  std::vector < Int_t > ScintUpIndex;
+  std::vector < Int_t > ScintDownIndex;
+  std::vector < Int_t > CherenUpIndex;
+  std::vector < Int_t > CherenDownIndex;  // Up & Down Indices Normalized into fCTHSegNum Scale (<64)
+  
+  std::vector < Int_t > ScintRecoIndex;
+  std::vector < Int_t > CherenRecoIndex;  // Indices where Hough Circles are passing through
+  std::vector < Bool_t > isIndexClockwise;
+  
+  for (int i=0; i<fPairCandidates.size(); i++){
+    std::vector < int > ScintIndex  = fPairCandidates[i].first;
+    std::vector < int > CherenIndex = fPairCandidates[i].second;
+    for (int i_sci=0; i_sci<ScintIndex.size(); i_sci++){
+      int index=ScintIndex[i_sci];
+      if (index>=fCTHSegNum){  //Up 
+	ScintUpIndex.push_back(index);
+      } 
+      if (index<fCTHSegNum){  //Up 
+	ScintDownIndex.push_back(index);
+      } 
+
+      std::pair<Double_t, Double_t> Scintx1y1 = std::make_pair(-fScintWidth/2.,-fScintHeight/2.);
+      std::pair<Double_t, Double_t> Scintx1y2 = std::make_pair(-fScintWidth/2.,fScintHeight/2.);
+      std::pair<Double_t, Double_t> Scintx2y1 = std::make_pair(fScintWidth/2.,-fScintHeight/2.);
+      std::pair<Double_t, Double_t> Scintx2y2 = std::make_pair(fScintWidth/2.,fScintHeight/2.);
+      Double_t ScintRotAngle=-(90-(index+1/2.)*360./fCTHSegNum+fScintTiltAngle);
+      Double_t xTrans=fScintRad*TMath::Cos((index+1/2.)*360./fCTHSegNum*TMath::Pi()/180.);
+      Double_t yTrans=fScintRad*TMath::Sin((index+1/2.)*360./fCTHSegNum*TMath::Pi()/180.);
+      
+      Scintx1y1=getRotatedXY(Scintx1y1, ScintRotAngle);
+      Scintx1y2=getRotatedXY(Scintx1y2, ScintRotAngle);
+      Scintx2y1=getRotatedXY(Scintx2y1, ScintRotAngle);
+      Scintx2y2=getRotatedXY(Scintx2y2, ScintRotAngle);
+      
+      Scintx1y1=std::make_pair(Scintx1y1.first+xTrans, Scintx1y1.second+yTrans);
+      Scintx1y2=std::make_pair(Scintx1y2.first+xTrans, Scintx1y2.second+yTrans);
+      Scintx2y1=std::make_pair(Scintx2y1.first+xTrans, Scintx2y1.second+yTrans);
+      Scintx2y2=std::make_pair(Scintx2y2.first+xTrans, Scintx2y2.second+yTrans);
+      
+      std::pair <Double_t, Double_t> ref1 = std::make_pair((Scintx1y1.first+Scintx1y2.first)/2,(Scintx1y1.second+Scintx1y2.second)/2);
+      std::pair <Double_t, Double_t> ref2 = std::make_pair((Scintx2y1.first+Scintx2y2.first)/2,(Scintx2y1.second+Scintx2y2.second)/2);
+      std::pair <Double_t, Double_t> refMid = std::make_pair((ref1.first+ref2.first)/2,(ref1.second+ref2.second)/2);
+      Double_t avg_cX=(abs_cX_even+abs_cX_odd)/2;
+      Double_t avg_cY=(abs_cY_even+abs_cY_odd)/2;
+      
+      if (ifCircleIsPassing(fRad_even, abs_cX_even, abs_cY_even, ref1, ref2)==1 || ifCircleIsPassing(fRad_odd, abs_cX_odd, abs_cY_odd, ref1, ref2)==1){
+	ScintRecoIndex.push_back(index);
+	Double_t cross = refMid.first*avg_cY-avg_cX*refMid.second;
+	if (cross>=0){
+	  isIndexClockwise.push_back(1);
+	}
+	else if (cross<0){
+	  isIndexClockwise.push_back(0);
+	}
+      }      
+    }
+    
+    for (int i_che=0; i_che<CherenIndex.size(); i_che++){
+      int index=CherenIndex[i_che];
+      if (index>=fCTHSegNum){  //Up 
+	CherenUpIndex.push_back(index);
+      } 
+      if (index<fCTHSegNum){  //Up 
+	CherenDownIndex.push_back(index);
+      }
+
+      std::pair<Double_t, Double_t> Cherenx1y1 = std::make_pair(-fCherenWidth/2.,-fCherenHeight/2.);
+      std::pair<Double_t, Double_t> Cherenx1y2 = std::make_pair(-fCherenWidth/2.,fCherenHeight/2.);
+      std::pair<Double_t, Double_t> Cherenx2y1 = std::make_pair(fCherenWidth/2.,-fCherenHeight/2.);
+      std::pair<Double_t, Double_t> Cherenx2y2 = std::make_pair(fCherenWidth/2.,fCherenHeight/2.);
+      Double_t CherenRotAngle=-(90-(index+1/2.)*360./fCTHSegNum+fCherenTiltAngle);
+      Double_t xTrans=fCherenRad*TMath::Cos((index+1/2.)*360./fCTHSegNum*TMath::Pi()/180.);
+      Double_t yTrans=fCherenRad*TMath::Sin((index+1/2.)*360./fCTHSegNum*TMath::Pi()/180.);
+      
+      Cherenx1y1=getRotatedXY(Cherenx1y1, CherenRotAngle);
+      Cherenx1y2=getRotatedXY(Cherenx1y2, CherenRotAngle);
+      Cherenx2y1=getRotatedXY(Cherenx2y1, CherenRotAngle);
+      Cherenx2y2=getRotatedXY(Cherenx2y2, CherenRotAngle);
+      
+      Cherenx1y1=std::make_pair(Cherenx1y1.first+xTrans, Cherenx1y1.second+yTrans);
+      Cherenx1y2=std::make_pair(Cherenx1y2.first+xTrans, Cherenx1y2.second+yTrans);
+      Cherenx2y1=std::make_pair(Cherenx2y1.first+xTrans, Cherenx2y1.second+yTrans);
+      Cherenx2y2=std::make_pair(Cherenx2y2.first+xTrans, Cherenx2y2.second+yTrans);
+      
+      std::pair <Double_t, Double_t> ref1 = std::make_pair((Cherenx1y1.first+Cherenx1y2.first)/2,(Cherenx1y1.second+Cherenx1y2.second)/2);
+      std::pair <Double_t, Double_t> ref2 = std::make_pair((Cherenx2y1.first+Cherenx2y2.first)/2,(Cherenx2y1.second+Cherenx2y2.second)/2);
+      std::pair <Double_t, Double_t> refMid = std::make_pair((ref1.first+ref2.first)/2,(ref1.second+ref2.second)/2);
+      Double_t avg_cX=(abs_cX_even+abs_cX_odd)/2;
+      Double_t avg_cY=(abs_cY_even+abs_cY_odd)/2;
+      
+      if (ifCircleIsPassing(fRad_even, abs_cX_even, abs_cY_even, ref1, ref2)==1 || ifCircleIsPassing(fRad_odd, abs_cX_odd, abs_cY_odd, ref1, ref2)==1){
+	CherenRecoIndex.push_back(index);
+	Double_t cross = refMid.first*avg_cY-avg_cX*refMid.second;
+	if (cross>=0){
+	  isIndexClockwise.push_back(1);
+	}
+	else if (cross<0){
+	  isIndexClockwise.push_back(0);
+	}
+      }            
+    }
+  }
+  
+  if (isIndexClockwise.empty()==1){
+    fReco2DCharge=0; // Non-Classified
+  }
+  else{
+    if (std::find(isIndexClockwise.begin(), isIndexClockwise.end(), 0) == isIndexClockwise.end()){ //vector only contains 1
+      fReco2DCharge=1;
+    }
+    else if (std::find(isIndexClockwise.begin(), isIndexClockwise.end(), 1) == isIndexClockwise.end()){ //vector only contains 0
+      fReco2DCharge=-1;
+    }
+    else {
+      fReco2DCharge=0;
+    }
+  }       
 }
 
 void IHoughTransform::GetMasterCoordinate(){
@@ -317,6 +657,14 @@ void IHoughTransform::GetMasterCoordinate(){
 void IHoughTransform::PrintMCStatus(){
   ITracking::PrintMCStatus();
 }
+
+void IHoughTransform::PrintResults(){
+  std::cout << "----- HoughTransform Results -----" << std::endl;
+  std::cout << "Maximum Layer Id: " << fRecoMaxWireLayerId << std::endl;
+  std::cout << "RecoCL3         : " << fRecoCL3 << std::endl;
+  std::cout << "Reco2DCharge    : " << fReco2DCharge << std::endl; 
+}
+
 
 int IHoughTransform::Finish(){
   return 1;
@@ -393,6 +741,13 @@ bool ifInsideVec(int element, std::vector<int> vec){
   return 0;
 }
 
+bool ifInsideArray(Int_t wireid, Int_t *reco_ids, Int_t arr_size){
+  for (Int_t i=0; i<arr_size; i++){
+    if (reco_ids[i]==wireid) return 1;
+  }
+  return 0;
+}
+
 Int_t findMaxPoint(std::vector<Int_t> vec){
   Int_t maxpoint;
   Int_t val=0;
@@ -404,3 +759,19 @@ Int_t findMaxPoint(std::vector<Int_t> vec){
   }
   return maxpoint;
 }
+
+std::pair<Double_t, Double_t> getRotatedXY(std::pair<Double_t, Double_t> xy, Double_t deg){
+  Double_t RotX = xy.first*TMath::Cos(deg*TMath::Pi()/180)-xy.second*TMath::Sin(deg*TMath::Pi()/180);
+  Double_t RotY = xy.second*TMath::Cos(deg*TMath::Pi()/180)+xy.first*TMath::Sin(deg*TMath::Pi()/180);  
+  std::pair<Double_t, Double_t> RotatedXY= std::make_pair(RotX, RotY);
+  return RotatedXY;
+};
+
+Bool_t ifCircleIsPassing(Double_t rad, Double_t cX, Double_t cY, std::pair<Double_t, Double_t> ref1, std::pair<Double_t, Double_t> ref2){
+  Double_t dist1 = pow(ref1.first-cX,2)+pow(ref1.second-cY,2);
+  Double_t dist2 = pow(ref2.first-cX,2)+pow(ref2.second-cY,2);
+  if (dist1<pow(rad,2) && dist2>pow(rad,2)) return 1;
+  else if (dist1>pow(rad,2) && dist2<pow(rad,2)) return 1;
+  return 0;
+};
+

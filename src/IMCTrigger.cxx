@@ -339,8 +339,8 @@ void IMCTrigger::ApplyShiftCondition(int Module, int shift){
 	      //ScintCluster.push_back(fIndex.at(ScintCluster_key.at(i_ele)));
 	      int index;      
 	      int keyVal=ScintCluster_key.at(i_ele);        
-	      if (fModule.at(keyVal)==0)      index=fIndex.at(keyVal)+fCTHSegNum;
-	      else if (fModule.at(keyVal)==1) index=fIndex.at(keyVal);		      
+	      if (fModule.at(keyVal)==0)      index=fIndex.at(keyVal)+fCTHSegNum; // UpStream   (64-127)
+	      else if (fModule.at(keyVal)==1) index=fIndex.at(keyVal);		  // DownStream (0-63)
 	      ScintCluster.push_back(index);
 	    }
 	    for (int i_ele=0; i_ele<CherenCluster_key.size(); i_ele++){
