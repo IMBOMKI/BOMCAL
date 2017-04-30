@@ -13,6 +13,7 @@
 
 #include <vector>
 #include <iostream>
+#include <string>
 #include <sstream>
 
 class TMyEventLoop: public COMET::ICOMETEventLoopFunction {
@@ -42,9 +43,9 @@ public:
   }
   
   bool operator () (COMET::ICOMETEvent& event) {
-
-
-    int EventId;
+    
+    int EventId = event.GetEventId();
+    if (EventId>100) return true;
     
     /******** Trigger *******/
     bool FourFoldCoincidence;
@@ -59,10 +60,10 @@ public:
     //////     SimG4/SimDetResp Information      ///////               
     ////////////////////////////////////////////////////
     
-    EventId = event.GetEventId();
-
+    
+    std::cout << std::endl;
     std::cout << "*Event Id: " << EventId << std::endl;
-    std::cout <<  std::endl;
+    std::cout << std::endl;
 
     COMET::IOADatabase::Get().Geometry();
     COMET::IHandle<COMET::IG4HitContainer> CTHHits = event.Get<COMET::IG4HitContainer>("truth/g4Hits/CTH");
@@ -93,10 +94,12 @@ public:
     //////              Tracking                 ///////               
     ////////////////////////////////////////////////////
 
+    TCanvas *c_hits = new TCanvas("c_hits", "c_hits", 1000,1000);  
     HoughTransform->LoadMCHits(CDCHits_DetResp, Trajectories);
     HoughTransform->PrintMCStatus();    
 
     if (FourFoldCoincidence==1 && HoughTransform->PreTrackCut()==1) {     
+
       HoughTransform->ImportTriggerInfo(PairCandidates);
       //fHoughTransform->SetHoughTransformVariables(3,100,300.0,0.02,-0.02,8,5,0,0);
       HoughTransform->Process();      
@@ -106,12 +109,14 @@ public:
       Reco2DCharge      =HoughTransform->Get2DCharge();
       RecoMaxWireLayerId=HoughTransform->GetMaxWireLayerId();      
       HoughTransform->PrintResults();
+      HoughTransform->DrawEvent(c_hits);
+      c_hits->SaveAs("./EventId"+TString(Form ("%d", EventId))+".png");
       fCoincidenceCount++;
     }
     
-
     delete MCTrigger;
     delete HoughTransform;
+    delete c_hits;
     return true;
   }
   

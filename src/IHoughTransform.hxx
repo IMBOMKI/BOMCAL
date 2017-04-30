@@ -19,14 +19,20 @@
 
 #include "TGeoManager.h"
 #include "TGeoNode.h"
+#include "TCanvas.h"
 
 
 class IHoughTransform: public ITracking {
 private:
   /*** Trigger Information ***/
   std::vector < std::pair < std::vector< int >, std::vector< int> > > fPairCandidates;
+  std::vector < Int_t > fScintUpIndex;
+  std::vector < Int_t > fScintDownIndex;
+  std::vector < Int_t > fCherenUpIndex;
+  std::vector < Int_t > fCherenDownIndex;  // Up & Down Indices Normalized into fCTHSegNum Scale (<64)
 
   /*** Geometry Variables ***/
+  double fDiskRad=10.0;
   int    fCTHSegNum=64;
   int    fNumOfLayers=18;
   double fScintRad=48.28;
@@ -96,6 +102,19 @@ private:
   double fInnerR_even;
   double fOuterR_odd;
   double fInnerR_odd;
+  
+  double fAbsCx_even;
+  double fAbsCy_even;
+  double fAbsCx_odd;
+  double fAbsCy_odd;
+
+  int    fnRecoHit_even;
+  double fRecoWireEnd0X_even[10000];
+  double fRecoWireEnd0Y_even[10000];
+  int    fnRecoHit_odd;
+  double fRecoWireEnd0X_odd[10000];
+  double fRecoWireEnd0Y_odd[10000];
+
 
   int    fnRecoHit;
   double fRecoWireEnd0X[10000];
@@ -140,7 +159,7 @@ public:
   bool GetCL3()            {return fRecoCL3;}
   int  GetMaxWireLayerId() {return fRecoMaxWireLayerId;}
   int  Get2DCharge()       {return fReco2DCharge;}
-  void DrawEvent();
+  void DrawEvent(TCanvas* canvas);
   void GetMasterCoordinate();
   void PrintMCStatus();
   void PrintResults();

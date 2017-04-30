@@ -3,6 +3,7 @@
 #include "HEPUnits.hxx"
 #include <vector>
 #include <iostream>
+#include <algorithm>
 
 #include <IOADatabase.hxx>
 #include <IReconBase.hxx>
@@ -46,6 +47,8 @@
 #include "TChain.h"
 #include "TGraph.h"
 #include "TGraph2D.h"
+#include "TEllipse.h"
+#include "TPolyLine.h"
 
 bool IntComparison (int i,int j);
 
@@ -69,7 +72,11 @@ IHoughTransform::IHoughTransform(const char* name = "IHoughTransform", const cha
    fBandWidth(8),
    fRadUncertainty(5),
    fRef(std::make_pair(0,0)),
-   fnRecoHit(0)
+   fnRecoHit(0),
+   fnRecoHit_even(0),
+   fnRecoHit_odd(0),
+   fRecoCL3(0),
+   fReco2DCharge(0)
 {;}
 IHoughTransform::~IHoughTransform(){;}
 
@@ -110,12 +117,11 @@ void IHoughTransform::GetLocalCoordinate(){
 
 void IHoughTransform::SortHits(){
   for (Int_t i_hit=0; i_hit<fnCALCDCHit; i_hit++){
-
     // Separate hits in odd and even layer  
     if ((fWireLayerId[i_hit]+1)%2==0){
       fWireEnd0X_even[fnEvenhits]=fWireEnd0X[i_hit];
       fWireEnd0Y_even[fnEvenhits]=fWireEnd0Y[i_hit];
-      fnEvenhits++;
+      fnEvenhits++;      
     }
     else if((fWireLayerId[i_hit]+1)%2==1){
       fWireEnd0X_odd[fnOddhits]=fWireEnd0X[i_hit];
@@ -225,10 +231,6 @@ void IHoughTransform::Process(){
 	  for (Int_t i_hit=0; i_hit<fnCALCDCHit ; i_hit++){   
 	    fConfX[i_hit] = ConfTransX(fWireEnd0X[i_hit]-oriX,fWireEnd0Y[i_hit]-oriY);
 	    fConfY[i_hit] = ConfTransY(fWireEnd0X[i_hit]-oriX,fWireEnd0Y[i_hit]-oriY);	    
-
-	    //std::cout << fWireEnd0X[i_hit] << "   " << fWireEnd0Y[i_hit] << "   " << fWireEnd0Z[i_hit] << std::endl;
-	    //std::cout << fConfX[i_hit] << "   " << fConfY[i_hit] << "   "  << std::endl;	   
-
 	  }
 	  	  
 	  ////////////////////////////////////////////
@@ -236,12 +238,18 @@ void IHoughTransform::Process(){
 	  ////////////////////////////////////////////
 	  
 	  Bool_t if_already_vote[fnBins][fnBins][2];
+	  std::vector < int > alreadyTransformedId;
+
 	  TH2D *vote = new TH2D("vote_even", "vote_even", fnBins, 0, fnBins, fnBins, 0, fnBins);     
 	  
 	  //std::cout << "nCALCDCHit " << fnCALCDCHit << std::endl;
 
 	  for (Int_t i_hit=0; i_hit<fnCALCDCHit; i_hit++){
 	    memset(if_already_vote,0,sizeof(if_already_vote));
+
+	    if (std::find(alreadyTransformedId.begin(), alreadyTransformedId.end(), fWireId[i_hit]) != alreadyTransformedId.end()) continue;
+	    alreadyTransformedId.push_back(fWireId[i_hit]);
+
 	    for (Int_t i_Pt=0 ; i_Pt<fnPt; i_Pt++){
 	      
 	      Double_t deg = i_Pt/fnPt*180.0;
@@ -322,12 +330,6 @@ void IHoughTransform::RecognizeHits(){
     |                                               |
     ------------------------------------------------*/
 
-  Int_t nRecoHit_even=0;
-  Int_t nRecoHit_odd=0;
-  Double_t RecoWireEnd0X_even[30000];
-  Double_t RecoWireEnd0Y_even[30000];
-  Double_t RecoWireEnd0X_odd[30000];
-  Double_t RecoWireEnd0Y_odd[30000];
   fOuterR_even = fRad_even +  fBandWidth/2.0;
   fInnerR_even = fRad_even -  fBandWidth/2.0;
   fOuterR_odd  = fRad_odd  +  fBandWidth/2.0;
@@ -338,9 +340,9 @@ void IHoughTransform::RecognizeHits(){
   for (Int_t i_hit=0; i_hit<fnCALCDCHit; i_hit++){
     if ((fWireLayerId[i_hit]+1)%2 == 0){ // even
       if (ifInsideBand(fWireEnd0X[i_hit],fWireEnd0Y[i_hit],fCx_even+fRef_even.first,fCy_even+fRef_even.second,fOuterR_even,fInnerR_even)==1){
-	RecoWireEnd0X_even[nRecoHit_even]=fWireEnd0X[i_hit];
-	RecoWireEnd0Y_even[nRecoHit_even]=fWireEnd0Y[i_hit];
-	nRecoHit_even++;	   
+	fRecoWireEnd0X_even[fnRecoHit_even]=fWireEnd0X[i_hit];
+	fRecoWireEnd0Y_even[fnRecoHit_even]=fWireEnd0Y[i_hit];
+	fnRecoHit_even++;	   
 	
 	fRecoWireEnd0X[fnRecoHit]=fWireEnd0X[i_hit];
 	fRecoWireEnd0Y[fnRecoHit]=fWireEnd0Y[i_hit];
@@ -359,10 +361,10 @@ void IHoughTransform::RecognizeHits(){
       }
     }
     else if ((fWireLayerId[i_hit]+1)%2 == 1){ // odd
-      if (ifInsideBand(fWireEnd0X[i_hit],fWireEnd0Y[i_hit],fCy_odd+fRef_odd.first,fCy_odd+fRef_odd.second,fOuterR_odd,fInnerR_odd)==1){
-	RecoWireEnd0X_odd[nRecoHit_odd]=fWireEnd0X[i_hit];
-	RecoWireEnd0Y_odd[nRecoHit_odd]=fWireEnd0Y[i_hit];
-	nRecoHit_odd++;
+      if (ifInsideBand(fWireEnd0X[i_hit],fWireEnd0Y[i_hit],fCx_odd+fRef_odd.first,fCy_odd+fRef_odd.second,fOuterR_odd,fInnerR_odd)==1){
+	fRecoWireEnd0X_odd[fnRecoHit_odd]=fWireEnd0X[i_hit];
+	fRecoWireEnd0Y_odd[fnRecoHit_odd]=fWireEnd0Y[i_hit];
+	fnRecoHit_odd++;
 	
 	fRecoWireEnd0X[fnRecoHit]=fWireEnd0X[i_hit];
 	fRecoWireEnd0Y[fnRecoHit]=fWireEnd0Y[i_hit];
@@ -415,9 +417,9 @@ void IHoughTransform::RecognizeHits(){
     if (ifInsideVec(fWireId[i_hit],WireIdsToBeReco)==1){
       
       if ((fWireLayerId[i_hit]+1)%2 == 0){ // even
-	RecoWireEnd0X_even[nRecoHit_even]=fWireEnd0X[i_hit];
-	RecoWireEnd0Y_even[nRecoHit_even]=fWireEnd0Y[i_hit];
-	nRecoHit_even++;	   
+	fRecoWireEnd0X_even[fnRecoHit_even]=fWireEnd0X[i_hit];
+	fRecoWireEnd0Y_even[fnRecoHit_even]=fWireEnd0Y[i_hit];
+	fnRecoHit_even++;	   
 	
 	fRecoWireEnd0X[fnRecoHit]=fWireEnd0X[i_hit];
 	fRecoWireEnd0Y[fnRecoHit]=fWireEnd0Y[i_hit];
@@ -437,9 +439,9 @@ void IHoughTransform::RecognizeHits(){
 	
       }
       else if ((fWireLayerId[i_hit]+1)%2 == 1){ // odd
-	RecoWireEnd0X_odd[nRecoHit_odd]=fWireEnd0X[i_hit];
-	RecoWireEnd0Y_odd[nRecoHit_odd]=fWireEnd0Y[i_hit];
-	nRecoHit_odd++;
+	fRecoWireEnd0X_odd[fnRecoHit_odd]=fWireEnd0X[i_hit];
+	fRecoWireEnd0Y_odd[fnRecoHit_odd]=fWireEnd0Y[i_hit];
+	fnRecoHit_odd++;
 	
 	fRecoWireEnd0X[fnRecoHit]=fWireEnd0X[i_hit];
 	fRecoWireEnd0Y[fnRecoHit]=fWireEnd0Y[i_hit];
@@ -465,10 +467,10 @@ void IHoughTransform::RecognizeHits(){
     |                  |
     -------------------*/
   
-  Double_t abs_cX_even=fCx_even+fRef_even.first;
-  Double_t abs_cY_even=fCy_even+fRef_even.second;
-  Double_t abs_cX_odd =fCx_odd  +fRef_odd.first;
-  Double_t abs_cY_odd =fCy_odd  +fRef_odd.second;      
+  fAbsCx_even=fCx_even+fRef_even.first;
+  fAbsCy_even=fCy_even+fRef_even.second;
+  fAbsCx_odd =fCx_odd +fRef_odd.first;
+  fAbsCy_odd =fCy_odd +fRef_odd.second;      
   std::vector< Int_t > domain1_layer;
   std::vector< TVector3 > domain1_wireend0;
   std::vector< TVector3 > domain1_wireend1;
@@ -485,9 +487,9 @@ void IHoughTransform::RecognizeHits(){
     
     if ((fRecoWireLayerId[i_reco]+1)%2 == 0){ //even
       
-      Double_t cross=fRecoWireEnd0X[i_reco]*abs_cY_even-fRecoWireEnd0Y[i_reco]*abs_cX_even;
+      Double_t cross=fRecoWireEnd0X[i_reco]*fAbsCy_even-fRecoWireEnd0Y[i_reco]*fAbsCx_even;
       Double_t LHS  =fRecoWireEnd0Y[i_reco];
-      Double_t RHS  =slope_even*(fRecoWireEnd0X[i_reco]-abs_cX_even)+abs_cY_even;
+      Double_t RHS  =slope_even*(fRecoWireEnd0X[i_reco]-fAbsCx_even)+fAbsCy_even;
       if (cross<=0){
 	domain1_layer.push_back(fRecoWireLayerId[i_reco]);
 	domain1_wireend0.push_back(wireend0);
@@ -501,9 +503,9 @@ void IHoughTransform::RecognizeHits(){
     }
     
     else if ((fRecoWireLayerId[i_reco]+1)%2 == 1){ //odd
-      Double_t cross=fRecoWireEnd0X[i_reco]*abs_cY_even-fRecoWireEnd0Y[i_reco]*abs_cX_even;
+      Double_t cross=fRecoWireEnd0X[i_reco]*fAbsCy_odd-fRecoWireEnd0Y[i_reco]*fAbsCx_odd;
       Double_t LHS  =fRecoWireEnd0Y[i_reco];
-      Double_t RHS  =slope_odd*(fRecoWireEnd0X[i_reco]-abs_cX_odd)+abs_cY_odd;
+      Double_t RHS  =slope_odd*(fRecoWireEnd0X[i_reco]-fAbsCx_odd)+fAbsCy_odd;
       if (cross<=0){
 	domain1_layer.push_back(fRecoWireLayerId[i_reco]);
 	domain1_wireend0.push_back(wireend0);
@@ -516,8 +518,6 @@ void IHoughTransform::RecognizeHits(){
       }
     }
   }
-
-  fRecoCL3=0;
   
   if (ifInsideVec(0,domain1_layer)==1 && ifInsideVec(1,domain1_layer)==1 && ifInsideVec(2,domain1_layer)==1){
     if (ifInsideVec(0,domain2_layer)==1 && ifInsideVec(1,domain2_layer)==1 && ifInsideVec(2,domain2_layer)==1){
@@ -530,12 +530,7 @@ void IHoughTransform::RecognizeHits(){
     |    Charge Identification     |
     |                              |
     -------------------------------*/
-     
-  std::vector < Int_t > ScintUpIndex;
-  std::vector < Int_t > ScintDownIndex;
-  std::vector < Int_t > CherenUpIndex;
-  std::vector < Int_t > CherenDownIndex;  // Up & Down Indices Normalized into fCTHSegNum Scale (<64)
-  
+       
   std::vector < Int_t > ScintRecoIndex;
   std::vector < Int_t > CherenRecoIndex;  // Indices where Hough Circles are passing through
   std::vector < Bool_t > isIndexClockwise;
@@ -545,11 +540,12 @@ void IHoughTransform::RecognizeHits(){
     std::vector < int > CherenIndex = fPairCandidates[i].second;
     for (int i_sci=0; i_sci<ScintIndex.size(); i_sci++){
       int index=ScintIndex[i_sci];
-      if (index>=fCTHSegNum){  //Up 
-	ScintUpIndex.push_back(index);
+      if (index<fCTHSegNum){   // Up 
+	fScintUpIndex.push_back(index);
       } 
-      if (index<fCTHSegNum){  //Up 
-	ScintDownIndex.push_back(index);
+      if (index>=fCTHSegNum){  // Down
+	index=(Int_t(1.5*fCTHSegNum)-index%fCTHSegNum)%fCTHSegNum;
+	fScintDownIndex.push_back(index);
       } 
 
       std::pair<Double_t, Double_t> Scintx1y1 = std::make_pair(-fScintWidth/2.,-fScintHeight/2.);
@@ -573,10 +569,10 @@ void IHoughTransform::RecognizeHits(){
       std::pair <Double_t, Double_t> ref1 = std::make_pair((Scintx1y1.first+Scintx1y2.first)/2,(Scintx1y1.second+Scintx1y2.second)/2);
       std::pair <Double_t, Double_t> ref2 = std::make_pair((Scintx2y1.first+Scintx2y2.first)/2,(Scintx2y1.second+Scintx2y2.second)/2);
       std::pair <Double_t, Double_t> refMid = std::make_pair((ref1.first+ref2.first)/2,(ref1.second+ref2.second)/2);
-      Double_t avg_cX=(abs_cX_even+abs_cX_odd)/2;
-      Double_t avg_cY=(abs_cY_even+abs_cY_odd)/2;
+      Double_t avg_cX=(fAbsCx_even+fAbsCx_odd)/2;
+      Double_t avg_cY=(fAbsCy_even+fAbsCy_odd)/2;
       
-      if (ifCircleIsPassing(fRad_even, abs_cX_even, abs_cY_even, ref1, ref2)==1 || ifCircleIsPassing(fRad_odd, abs_cX_odd, abs_cY_odd, ref1, ref2)==1){
+      if (ifCircleIsPassing(fRad_even, fAbsCx_even, fAbsCy_even, ref1, ref2)==1 || ifCircleIsPassing(fRad_odd, fAbsCx_odd, fAbsCy_odd, ref1, ref2)==1){
 	ScintRecoIndex.push_back(index);
 	Double_t cross = refMid.first*avg_cY-avg_cX*refMid.second;
 	if (cross>=0){
@@ -590,11 +586,12 @@ void IHoughTransform::RecognizeHits(){
     
     for (int i_che=0; i_che<CherenIndex.size(); i_che++){
       int index=CherenIndex[i_che];
-      if (index>=fCTHSegNum){  //Up 
-	CherenUpIndex.push_back(index);
-      } 
       if (index<fCTHSegNum){  //Up 
-	CherenDownIndex.push_back(index);
+	fCherenUpIndex.push_back(index);
+      } 
+      if (index>=fCTHSegNum){  //Down 
+	index=(Int_t(1.5*fCTHSegNum)-index%fCTHSegNum)%fCTHSegNum;
+	fCherenDownIndex.push_back(index);
       }
 
       std::pair<Double_t, Double_t> Cherenx1y1 = std::make_pair(-fCherenWidth/2.,-fCherenHeight/2.);
@@ -618,10 +615,10 @@ void IHoughTransform::RecognizeHits(){
       std::pair <Double_t, Double_t> ref1 = std::make_pair((Cherenx1y1.first+Cherenx1y2.first)/2,(Cherenx1y1.second+Cherenx1y2.second)/2);
       std::pair <Double_t, Double_t> ref2 = std::make_pair((Cherenx2y1.first+Cherenx2y2.first)/2,(Cherenx2y1.second+Cherenx2y2.second)/2);
       std::pair <Double_t, Double_t> refMid = std::make_pair((ref1.first+ref2.first)/2,(ref1.second+ref2.second)/2);
-      Double_t avg_cX=(abs_cX_even+abs_cX_odd)/2;
-      Double_t avg_cY=(abs_cY_even+abs_cY_odd)/2;
+      Double_t avg_cX=(fAbsCx_even+fAbsCx_odd)/2;
+      Double_t avg_cY=(fAbsCy_even+fAbsCy_odd)/2;
       
-      if (ifCircleIsPassing(fRad_even, abs_cX_even, abs_cY_even, ref1, ref2)==1 || ifCircleIsPassing(fRad_odd, abs_cX_odd, abs_cY_odd, ref1, ref2)==1){
+      if (ifCircleIsPassing(fRad_even, fAbsCx_even, fAbsCy_even, ref1, ref2)==1 || ifCircleIsPassing(fRad_odd, fAbsCx_odd, fAbsCy_odd, ref1, ref2)==1){
 	CherenRecoIndex.push_back(index);
 	Double_t cross = refMid.first*avg_cY-avg_cX*refMid.second;
 	if (cross>=0){
@@ -665,6 +662,185 @@ void IHoughTransform::PrintResults(){
   std::cout << "Reco2DCharge    : " << fReco2DCharge << std::endl; 
 }
 
+void IHoughTransform::DrawEvent(TCanvas* canvas){
+
+  /*-----------------------------------------
+    |                                         |
+    |   Wire Hit Drawing with Hough Circle    |
+    |                                         |
+    ------------------------------------------*/
+
+  canvas->cd();
+  canvas->DrawFrame(-90,-90,90,90);
+
+  // Hough Circles (Even, Odd)
+  
+  // TEllipse *Outer_circle_even = new TEllipse(fAbsCx_even,fAbsCy_even,fOuterR_even,fOuterR_even);
+  // TEllipse *Inner_circle_even = new TEllipse(fAbsCx_even,fAbsCy_even,fInnerR_even,fInnerR_even);
+  // TEllipse *Outer_circle_odd = new TEllipse(fAbsCx_odd,fAbsCy_odd,fOuterR_odd,fOuterR_odd);
+  // TEllipse *Inner_circle_odd = new TEllipse(fAbsCx_odd,fAbsCy_odd,fInnerR_odd,fInnerR_odd);
+
+  // Inner_circle_even->SetLineColor(0);  
+  // Inner_circle_even->SetFillColor(10);
+  // Inner_circle_even->Draw();
+
+  // Inner_circle_odd->SetLineColor(0);  
+  // Inner_circle_odd->SetFillColor(10);
+  // Inner_circle_odd->Draw();
+
+  // Outer_circle_even->SetLineColor(33);  
+  // Outer_circle_even->SetFillColor(33);
+  // Outer_circle_even->SetFillStyle(4050);
+  // Outer_circle_even->Draw();
+
+  // Outer_circle_odd->SetLineColor(45);  
+  // Outer_circle_odd->SetFillColor(45);
+  // Outer_circle_odd->SetFillStyle(4050);
+  // Outer_circle_odd->Draw();
+  
+  // Wire Layers  
+  
+  for (Int_t i=0; i<18; i++){
+    TEllipse *WireCircle = new TEllipse(0,0,fLayerRadius[i],fLayerRadius[i]);
+    WireCircle->SetFillColor(0);
+    WireCircle->SetFillStyle(4000);
+    WireCircle->SetLineColor(40);
+    WireCircle->Draw();
+  }
+  
+  // Stopping Targets
+  
+  TEllipse *Disk = new TEllipse(0,0,fDiskRad,fDiskRad);
+  Disk->SetFillColor(40);
+  Disk->SetLineColor(40);
+  Disk->Draw();  
+  
+  // Trigger Hodoscopes
+  
+  for (Int_t i_cth=0; i_cth<fCTHSegNum; i_cth++){
+    std::pair<Double_t, Double_t> Scintx1y1 = std::make_pair(-fScintWidth/2.,-fScintHeight/2.);
+    std::pair<Double_t, Double_t> Scintx1y2 = std::make_pair(-fScintWidth/2.,fScintHeight/2.);
+    std::pair<Double_t, Double_t> Scintx2y1 = std::make_pair(fScintWidth/2.,-fScintHeight/2.);
+    std::pair<Double_t, Double_t> Scintx2y2 = std::make_pair(fScintWidth/2.,fScintHeight/2.);
+    Double_t ScintRotAngle=-(90-(i_cth+1/2.)*360./fCTHSegNum+fScintTiltAngle);
+    Double_t xTrans=fScintRad*TMath::Cos((i_cth+1/2.)*360./fCTHSegNum*TMath::Pi()/180.);
+    Double_t yTrans=fScintRad*TMath::Sin((i_cth+1/2.)*360./fCTHSegNum*TMath::Pi()/180.);
+    
+    Scintx1y1=getRotatedXY(Scintx1y1, ScintRotAngle);
+    Scintx1y2=getRotatedXY(Scintx1y2, ScintRotAngle);
+    Scintx2y1=getRotatedXY(Scintx2y1, ScintRotAngle);
+    Scintx2y2=getRotatedXY(Scintx2y2, ScintRotAngle);
+    
+    Scintx1y1=std::make_pair(Scintx1y1.first+xTrans, Scintx1y1.second+yTrans);
+    Scintx1y2=std::make_pair(Scintx1y2.first+xTrans, Scintx1y2.second+yTrans);
+    Scintx2y1=std::make_pair(Scintx2y1.first+xTrans, Scintx2y1.second+yTrans);
+    Scintx2y2=std::make_pair(Scintx2y2.first+xTrans, Scintx2y2.second+yTrans);
+    
+    Double_t x[5]={Scintx1y1.first,  Scintx1y2.first,  Scintx2y2.first,  Scintx2y1.first,  Scintx1y1.first};
+    Double_t y[5]={Scintx1y1.second, Scintx1y2.second, Scintx2y2.second, Scintx2y1.second, Scintx1y1.second};
+    
+    TPolyLine *ScintBox=new TPolyLine(5,x,y);
+    ScintBox->SetFillColor(0);
+    ScintBox->SetFillStyle(4000);
+    
+    if (ifInsideVec(i_cth,fScintUpIndex)==1 || ifInsideVec(i_cth,fScintDownIndex)==1){
+      ScintBox->SetFillColor(8);
+      ScintBox->SetFillStyle(1001);
+    }
+    
+    ScintBox->Draw("f");
+    ScintBox->Draw();
+  }
+  for (Int_t i_cth=0; i_cth<fCTHSegNum; i_cth++){
+    std::pair<Double_t, Double_t> Cherenx1y1 = std::make_pair(-fCherenWidth/2.,-fCherenHeight/2.);
+    std::pair<Double_t, Double_t> Cherenx1y2 = std::make_pair(-fCherenWidth/2.,fCherenHeight/2.);
+    std::pair<Double_t, Double_t> Cherenx2y1 = std::make_pair(fCherenWidth/2.,-fCherenHeight/2.);
+    std::pair<Double_t, Double_t> Cherenx2y2 = std::make_pair(fCherenWidth/2.,fCherenHeight/2.);
+    Double_t CherenRotAngle=-(90-(i_cth+1/2.)*360./fCTHSegNum+fCherenTiltAngle);
+    Double_t xTrans=fCherenRad*TMath::Cos((i_cth+1/2.)*360./fCTHSegNum*TMath::Pi()/180.);
+    Double_t yTrans=fCherenRad*TMath::Sin((i_cth+1/2.)*360./fCTHSegNum*TMath::Pi()/180.);
+    
+    Cherenx1y1=getRotatedXY(Cherenx1y1, CherenRotAngle);
+    Cherenx1y2=getRotatedXY(Cherenx1y2, CherenRotAngle);
+    Cherenx2y1=getRotatedXY(Cherenx2y1, CherenRotAngle);
+    Cherenx2y2=getRotatedXY(Cherenx2y2, CherenRotAngle);
+    
+    Cherenx1y1=std::make_pair(Cherenx1y1.first+xTrans, Cherenx1y1.second+yTrans);
+    Cherenx1y2=std::make_pair(Cherenx1y2.first+xTrans, Cherenx1y2.second+yTrans);
+    Cherenx2y1=std::make_pair(Cherenx2y1.first+xTrans, Cherenx2y1.second+yTrans);
+    Cherenx2y2=std::make_pair(Cherenx2y2.first+xTrans, Cherenx2y2.second+yTrans);
+    
+    Double_t x[5]={Cherenx1y1.first,  Cherenx1y2.first,  Cherenx2y2.first,  Cherenx2y1.first,  Cherenx1y1.first};
+    Double_t y[5]={Cherenx1y1.second, Cherenx1y2.second, Cherenx2y2.second, Cherenx2y1.second, Cherenx1y1.second};
+    
+    TPolyLine *CherenBox=new TPolyLine(5,x,y);
+    
+    CherenBox->SetFillColor(0);
+    CherenBox->SetFillStyle(4000);
+    
+    if (ifInsideVec(i_cth,fCherenUpIndex)==1 || ifInsideVec(i_cth,fCherenDownIndex)==1){
+      CherenBox->SetFillColor(9);
+      CherenBox->SetFillStyle(1001);
+    }
+    
+    CherenBox->Draw("f");
+    CherenBox->Draw();
+    
+  }
+  
+  
+  // Hough Circles (Even, Odd)
+  
+  TEllipse *circle_even = new TEllipse(fAbsCx_even,fAbsCy_even,fRad_even,fRad_even);
+  TEllipse *circle_odd = new TEllipse(fAbsCx_odd,fAbsCy_odd,fRad_odd,fRad_odd);
+  TEllipse *center_even = new TEllipse(fAbsCx_even,fAbsCy_even,0.1,0.1);
+  TEllipse *center_odd = new TEllipse(fAbsCx_odd,fAbsCy_odd,0.1,0.1);
+  
+  circle_even->SetFillColor(0);
+  circle_even->SetFillStyle(4000);
+  circle_even->SetLineColor(4);
+  circle_even->SetLineWidth(0);
+  circle_even->Draw();
+  
+  circle_odd->SetFillColor(0);
+  circle_odd->SetFillStyle(4000);
+  circle_odd->SetLineColor(2);      
+  circle_odd->SetLineWidth(0);
+  circle_odd->Draw();
+
+  // Hits
+  
+  TGraph *grEvenhits = new TGraph(fnEvenhits, fWireEnd0X_even, fWireEnd0Y_even);
+  grEvenhits->SetTitle("Evenhits");
+  grEvenhits->SetMarkerStyle(20);
+  grEvenhits->SetMarkerSize(1);
+  grEvenhits->SetMarkerColor(4);  //even - blue
+  grEvenhits->Draw("P");
+  
+  TGraph *grOddhits = new TGraph(fnOddhits, fWireEnd0X_odd, fWireEnd0Y_odd);
+  grOddhits->SetTitle("Oddhits");
+  grOddhits->SetMarkerStyle(20);
+  grOddhits->SetMarkerSize(1);
+  grOddhits->SetMarkerColor(2);  //odd - red
+  grOddhits->Draw("P");
+  
+  // Recognized Hits
+  
+  TGraph *grRecoEvenhits = new TGraph(fnRecoHit_even, fRecoWireEnd0X_even, fRecoWireEnd0Y_even);
+  grRecoEvenhits->SetTitle("RecoEvenhits");  
+  grRecoEvenhits->SetMarkerStyle(20);
+  grRecoEvenhits->SetMarkerSize(1);
+  grRecoEvenhits->SetMarkerColor(38); // Reco_even - right blue
+  grRecoEvenhits->Draw("P");
+  
+  TGraph *grRecoOddhits = new TGraph(fnRecoHit_odd, fRecoWireEnd0X_odd, fRecoWireEnd0Y_odd);
+  grRecoOddhits->SetTitle("RecoOddhits");
+  grRecoOddhits->SetMarkerStyle(20);
+  grRecoOddhits->SetMarkerSize(1);
+  grRecoOddhits->SetMarkerColor(46); // Reco_odd - right red
+  grRecoOddhits->Draw("P");      
+
+}
 
 int IHoughTransform::Finish(){
   return 1;
@@ -720,6 +896,7 @@ void MakeCluster(std::vector<int> &WireIds, std::vector<std::vector< int > > &Cl
   }
 }
 
+
 bool ifInsideDisk(double x, double y){
   if (pow(x,2)+pow(y,2)<100){ return 1;}
   else {return 0;}
@@ -774,4 +951,3 @@ Bool_t ifCircleIsPassing(Double_t rad, Double_t cX, Double_t cY, std::pair<Doubl
   else if (dist1>pow(rad,2) && dist2<pow(rad,2)) return 1;
   return 0;
 };
-
