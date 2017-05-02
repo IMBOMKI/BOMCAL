@@ -34,7 +34,7 @@
 #include <TGeoNode.h>
 
 ITracking::ITracking(const char* name = "ITracking", const char* title="tracking")
-:fnCALCDCHit(0)
+:fnCALCDCHit(0), fnCDCHit(0)
 {;}
 ITracking::~ITracking(){;}
 
@@ -46,7 +46,15 @@ int ITracking::Init()
   return 1;
 }
 
-void ITracking::LoadMCHits(COMET::IHandle<COMET::IHitSelection> hitHandle, COMET::IHandle<COMET::IG4TrajectoryContainer> trajectories){
+TGeoNode* GetNode(TVector3 position) {
+  gGeoManager->PushPath();	
+  gGeoManager->GetTopNode()->cd();	 	  
+  TGeoNode* volume = gGeoManager->FindNode(position(0),position(1),position(2));
+  gGeoManager->PopPath();
+  return volume;
+}
+
+void ITracking::LoadMCHits(COMET::IHandle<COMET::IHitSelection> hitHandle, COMET::IHandle<COMET::IG4TrajectoryContainer> trajectories, COMET::IHandle<COMET::IG4HitContainer> cdcHits){
 
   TGeoManager* geom = COMET::IOADatabase::Get().Geometry();
   COMET::ICDCWireManager* WireManager = new COMET::ICDCWireManager();
@@ -76,7 +84,38 @@ void ITracking::LoadMCHits(COMET::IHandle<COMET::IHitSelection> hitHandle, COMET
       }
     }
   }
-  
+
+  if (cdcHits){
+    for(COMET::IG4HitContainer::const_iterator hitSeg = cdcHits->begin(); hitSeg != cdcHits->end(); ++hitSeg) {
+      COMET::IG4HitSegment* tmpSeg = dynamic_cast<COMET::IG4HitSegment*>(*hitSeg);
+      
+      
+      if (tmpSeg){
+		
+	TVector3 hitPos;
+	Double_t hitT;
+	
+	hitPos(0)=0.5 * (tmpSeg->GetStopX()*(1/unit::cm)+tmpSeg->GetStartX()*(1/unit::cm));
+	hitPos(1)=0.5 * (tmpSeg->GetStopY()*(1/unit::cm)+tmpSeg->GetStartY()*(1/unit::cm));
+	hitPos(2)=0.5 * (tmpSeg->GetStopZ()*(1/unit::cm)+tmpSeg->GetStartZ()*(1/unit::cm));
+	hitT = 0.5 * (tmpSeg->GetStopT()*(1/unit::ns)+tmpSeg->GetStartT()*(1/unit::ns));
+	
+	TGeoNode* volume = GetNode(hitPos);
+	TString geoName = TString(volume->GetName());
+	
+	if (geoName.Contains("CDCSenseLayer")){
+	  fCDCHitX[fnCDCHit]=hitPos(0);
+	  fCDCHitY[fnCDCHit]=hitPos(1);
+	  fCDCHitZ[fnCDCHit]=hitPos(2);
+	  fCDCHitT[fnCDCHit]=hitT;
+	  fCDCEDep[fnCDCHit]=tmpSeg->GetEnergyDeposit();
+	  	  
+	  fnCDCHit++;
+	}	  
+      }	
+    }
+  }
+    
   COMET::IChannelId tmpchanId;
 
   if (hitHandle){

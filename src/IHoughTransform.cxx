@@ -316,10 +316,6 @@ void IHoughTransform::Process(){
   fRad_odd  = sqrt(pow(fCx_odd,2)+pow(fCy_odd,2));   
   fFitpT    = (fRad_even/0.3356+fRad_odd/0.3356)/2;
   fTruthpT  = sqrt(pow(fGenTrPy,2)+pow(fGenTrPz,2));
-
-  std::cout << fRad_even << "   " << fRad_odd << std::endl;
-  std::cout << std::endl;
-
 }
 
 void IHoughTransform::RecognizeHits(){
@@ -840,6 +836,14 @@ void IHoughTransform::DrawEvent(TCanvas* canvas){
   grRecoOddhits->SetMarkerColor(46); // Reco_odd - right red
   grRecoOddhits->Draw("P");      
 
+}
+
+std::vector<int> IHoughTransform::GetRecoWireId(){
+  std::vector<int> wireId;
+  for (int i=0; i<fnRecoHit; i++){
+    wireId.push_back(fRecoWireId[i]);
+  }
+  return wireId;
 }
 
 int IHoughTransform::Finish(){

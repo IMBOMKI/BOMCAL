@@ -3,6 +3,9 @@ package BOMKI_analysis
 use oaEvent
 use oaGeomInfo
 use oaChanInfo
+use oaEMField
+use GENFIT
+use CLHEP
 
 # Build methods to include.
 document version version *.cxx ../dict/*.cxx

@@ -34,6 +34,13 @@ protected:
   double fGenTrPz;
   double fGenTrE;
 
+  int fnCDCHit;
+  double fCDCHitX[10000];
+  double fCDCHitY[10000];
+  double fCDCHitZ[10000];
+  double fCDCHitT[10000];
+  double fCDCEDep[10000];
+
   int    fnCALCDCHit;
   double fDriftDist[10000];
   int    fCDCCharge[10000];
@@ -57,7 +64,7 @@ public:
   /// called at the begin of run or else (should not be in event-by-event)
   int  Init();
 
-  void LoadMCHits(COMET::IHandle<COMET::IHitSelection> hitHandle, COMET::IHandle<COMET::IG4TrajectoryContainer> trajectories);
+  void LoadMCHits(COMET::IHandle<COMET::IHitSelection> hitHandle, COMET::IHandle<COMET::IG4TrajectoryContainer> trajectories, COMET::IHandle<COMET::IG4HitContainer> cdcHits);
 
   void PrintMCStatus();
 

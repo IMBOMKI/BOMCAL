@@ -139,8 +139,8 @@ public:
   /// called at the begin of run or else (should not be in event-by-event)
   int  Init();
 
-  void LoadMCHits(COMET::IHandle<COMET::IHitSelection> hitHandle, COMET::IHandle<COMET::IG4TrajectoryContainer> trajectories){
-    ITracking::LoadMCHits(hitHandle, trajectories);
+  void LoadMCHits(COMET::IHandle<COMET::IHitSelection> hitHandle, COMET::IHandle<COMET::IG4TrajectoryContainer> trajectories, COMET::IHandle<COMET::IG4HitContainer> cdcHits){
+    ITracking::LoadMCHits(hitHandle, trajectories, cdcHits);
   }  
   void ImportTriggerInfo(std::vector < std::pair < std::vector< int >, std::vector< int > > > PairCandidates){
     fPairCandidates = PairCandidates;
@@ -160,7 +160,8 @@ public:
   int  GetMaxWireLayerId() {return fRecoMaxWireLayerId;}
   int  Get2DCharge()       {return fReco2DCharge;}
   void DrawEvent(TCanvas* canvas);
-  void GetMasterCoordinate();
+  void GetMasterCoordinate(); // Not used
+  std::vector<int> GetRecoWireId();
   void PrintMCStatus();
   void PrintResults();
 
