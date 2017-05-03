@@ -78,6 +78,7 @@ IGenFitting::IGenFitting(const char* name, const char* title)
   ,fUseBetheBloch(true)
   ,fUseBrems(false)
   ,fMethod("KalmanFitter")
+   //,fMethod("DAF")
   ,fPID(11)
   ,fMinIterations(10)
   ,fMaxIterations(50)
@@ -91,7 +92,7 @@ IGenFitting::IGenFitting(const char* name, const char* title)
   ,fUseExtFieldFile(false)
   ,fFieldMap("/home/bomki/ICEDUST/local_storage/fieldmaps/150630_defaultFieldmap/load_fieldmaps.mac")
   ,fUseMCTruth(true)
-  ,fSmearing(true)
+  ,fSmearing(false)
   ,fSigmaD(0.02)
 {
   ; //if (fSaveTree) fTree = new TTree("gftree", "GenFit tree");
@@ -145,6 +146,8 @@ void IGenFitting::LoadHitsAfterHT(COMET::IHandle<COMET::IHitSelection> hitHandle
     fWireEnd1X[i] = COMET::IGeomInfo::Get().CDC().GetWireEnd1(wire).X();
     fWireEnd1Y[i] = COMET::IGeomInfo::Get().CDC().GetWireEnd1(wire).Y();
     fWireEnd1Z[i] = COMET::IGeomInfo::Get().CDC().GetWireEnd1(wire).Z();
+
+    //std::cout << i << "   " << fWireEnd0X[i] << "   " << fWireEnd0Y[i] << "   " << fWireEnd0Z[i] << std::endl;
   }
 }  
 
@@ -222,16 +225,16 @@ int IGenFitting::doFit(){
       TVectorD wireMes(7);       /// Wire end0(x,y,z), end1(x,y,z), drift distance
       TMatrixDSym wireMatrix(7); /// Uncertainties for wireMes values
       
-      //std::cout << fWireEnd0X[i_hit] << "  " << fWireEnd0Y[i_hit] << "  " << fWireEnd0Z[i_hit] << std::endl;
+      std::cout << "Hit Info " << i_hit << "  " << fWireEnd0X[i_hit] << "  " << fWireEnd0Y[i_hit] << "  " << fWireEnd0Z[i_hit] << std::endl;
       wireMes[0] = fWireEnd0X[i_hit];
       wireMes[1] = fWireEnd0Y[i_hit];
       wireMes[2] = fWireEnd0Z[i_hit];
       wireMes[3] = fWireEnd1X[i_hit];
       wireMes[4] = fWireEnd1Y[i_hit];
       wireMes[5] = fWireEnd1Z[i_hit];
-      wireMes[6] = 0.;
-      
+      wireMes[6] = 0.;      
       trackPoints.push_back(new genfit::TrackPoint());
+
       if (fSmearing) wireMes[6] += gRandom->Gaus(0, fSigmaD); /// drift distance is smeared by fSigmaD
      
       for (int row = 0; row < 7; row++) {
@@ -241,12 +244,10 @@ int IGenFitting::doFit(){
 	  else            wireMatrix(row,col) = std::pow(fSigmaD,2); /// Resolution of drift distance
 	}
       }
-      mesHits.push_back( new genfit::WireMeasurement(wireMes, wireMatrix, fWireId[i_hit], i_hit, trackPoints.at(i_hit)) );  
-      
+      mesHits.push_back( new genfit::WireMeasurement(wireMes, wireMatrix, fWireId[i_hit], i_hit, trackPoints.at(i_hit)) );        
       trackPoints.at(i_hit)->addRawMeasurement(mesHits.at(i_hit));
       fitTrack->insertPoint(trackPoints.at(i_hit), nTotalHits++);  
-    }
-    
+    }    
   }
 
   else if (fUseMCTruth){

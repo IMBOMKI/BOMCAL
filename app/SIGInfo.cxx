@@ -146,6 +146,8 @@ public:
     trdata->Branch("CDCHitZ", CDCHitZ, "CDCHitZ[nCDCHit]/D");
     trdata->Branch("CDCHitT", CDCHitT, "CDCHitT[nCDCHit]/D");
     trdata->Branch("CDCEDep", CDCEDep, "CDCEDep[nCDCHit]/D");
+    trdata->Branch("TurnId",  TurnId, "TurnId[nCDCHit]/I");
+    trdata->Branch("TurnNumber",  &TurnNumber, "TurnNumber/I");
 
     trdata->Branch("nCRKHit", &nCRKHit, "nCRKHit/I");
     trdata->Branch("CRKHitX", CRKHitX, "CRKHitX[nCRKHit]/D");
@@ -246,6 +248,8 @@ public:
     memset (CDCHitZ, 0, sizeof (CDCHitZ));
     memset (CDCHitT, 0, sizeof (CDCHitT));
     memset (CDCEDep, 0, sizeof (CDCEDep));
+    memset (TurnId, 0, sizeof (TurnId));
+    TurnNumber=0;
 
     nCRKHit=0;
     memset (CRKHitX, 0, sizeof (CRKHitX));
@@ -453,6 +457,10 @@ public:
     
     std::vector<TString> CDCHit_PairepGeometry;
     CDCHit_PairepGeometry.push_back("Default");
+
+    std::vector<TString> CDCHitGeometry_Prim;
+    CDCHitGeometry_Prim.push_back("Default");
+    int NumOfCDC_0_Prim=0;
     
     COMET::IHandle<COMET::IG4HitContainer> CDCHitCont = event.Get<COMET::IG4HitContainer>("truth/g4Hits/CDC");
     if (CDCHitCont){
@@ -497,7 +505,18 @@ public:
 	    CDCHitZ[nCDCHit]=hitPos(2);
 	    CDCHitT[nCDCHit]=hitT;
 	    CDCEDep[nCDCHit]=tmpSeg->GetEnergyDeposit();
+
+	    if (*trajContributors.begin()==1 && trajContributors.size()==1){ // If it is Primary (Signal)
+	      if (CDCHitGeometry_Prim.back() != geoName){
+		CDCHitGeometry_Prim.push_back(geoName);
+		if (geoName=="CDCSenseLayer_0_0"){
+		  NumOfCDC_0_Prim++;
+		}
+	      }
+	    }
 	    	    
+	    TurnId[nCDCHit]=NumOfCDC_0_Prim-1;
+
 	    if (ifPairProdOccurs==1){
 	      
 	      if (trajContributors[0]==Pairep_TrackId && trajContributors.size()==1){  
@@ -535,6 +554,8 @@ public:
         }	
       }
     }
+
+    TurnNumber = (NumOfCDC_0_Prim+1)/2;
         
     if (ifPairProdOccurs==1 && nCDCHit_Pairem>0){
       for (Int_t i=0; i<nCDCHit_Pairem; i++){
@@ -610,7 +631,7 @@ public:
 	    std::cout << "Mislocated hit is detected" << std::endl;
 	  }
 
-	  std::cout << CTHChannelId.GetScint() << "   " << CTHChannelId.GetLightGuide() << "   " << geoName << "   " << CTHChannelId.GetCounter() << "   " << CTHChannelId.GetModule() << std::endl;
+	  //std::cout << CTHChannelId.GetScint() << "   " << CTHChannelId.GetLightGuide() << "   " << geoName << "   " << CTHChannelId.GetCounter() << "   " << CTHChannelId.GetModule() << std::endl;
        
           if (geoName.Contains("Cherenkov_pv"))
 	    {
@@ -812,6 +833,8 @@ private:
   Double_t CDCHitZ[100000];  
   Double_t CDCHitT[100000]; 
   Double_t CDCEDep[100000];
+  Int_t TurnId[100000];
+  Int_t TurnNumber;
 
   Int_t nCRKHit;
   Double_t CRKHitX[10000];  

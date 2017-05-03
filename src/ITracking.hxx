@@ -53,9 +53,8 @@ protected:
   int    fWireLayerId[10000];
   int    fWireId[10000];
   int    fWireMaxLayerId;
-
-  // Process output
-  bool   fReco[10000];
+  int    fTurnId[10000];
+  int    fTurnNumber;
 
 public:
   ITracking(const char*name, const char* title);
@@ -65,6 +64,8 @@ public:
   int  Init();
 
   void LoadMCHits(COMET::IHandle<COMET::IHitSelection> hitHandle, COMET::IHandle<COMET::IG4TrajectoryContainer> trajectories, COMET::IHandle<COMET::IG4HitContainer> cdcHits);
+  
+  void ShuffleMCHits();
 
   void PrintMCStatus();
 

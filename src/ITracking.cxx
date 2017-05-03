@@ -4,6 +4,7 @@
 #include <vector>
 #include <iostream>
 #include <string>
+#include <algorithm>
 
 #include <IOADatabase.hxx>
 #include <IReconBase.hxx>
@@ -34,7 +35,10 @@
 #include <TGeoNode.h>
 
 ITracking::ITracking(const char* name = "ITracking", const char* title="tracking")
-:fnCALCDCHit(0), fnCDCHit(0)
+:fnCALCDCHit(0), 
+  fnCDCHit(0),
+ fTurnNumber(0)
+
 {;}
 ITracking::~ITracking(){;}
 
@@ -85,12 +89,18 @@ void ITracking::LoadMCHits(COMET::IHandle<COMET::IHitSelection> hitHandle, COMET
     }
   }
 
+  std::vector<TString> CDCHitGeometry;
+  CDCHitGeometry.push_back("Default");
+  int NumOfCDC_0=0;
+
   if (cdcHits){
     for(COMET::IG4HitContainer::const_iterator hitSeg = cdcHits->begin(); hitSeg != cdcHits->end(); ++hitSeg) {
       COMET::IG4HitSegment* tmpSeg = dynamic_cast<COMET::IG4HitSegment*>(*hitSeg);
-      
-      
+            
       if (tmpSeg){
+
+	COMET::IHandle<COMET::IG4Trajectory>  trajectory = TrajCont->GetTrajectory(tmpSeg->GetPrimaryId());
+	std::vector <Int_t> trajContributors = tmpSeg->GetContributors();
 		
 	TVector3 hitPos;
 	Double_t hitT;
@@ -110,11 +120,22 @@ void ITracking::LoadMCHits(COMET::IHandle<COMET::IHitSelection> hitHandle, COMET
 	  fCDCHitT[fnCDCHit]=hitT;
 	  fCDCEDep[fnCDCHit]=tmpSeg->GetEnergyDeposit();
 	  	  
+	  if (*trajContributors.begin()==1 && trajContributors.size()==1){ // If it is Primary (Signal)
+	    if (CDCHitGeometry.back() != geoName){
+	      CDCHitGeometry.push_back(geoName);
+	      if (geoName=="CDCSenseLayer_0_0"){
+		NumOfCDC_0++;
+	      }
+	    }
+	  }	  
+	  fTurnId[fnCDCHit]=NumOfCDC_0-1;
 	  fnCDCHit++;
-	}	  
+	}	  	       	
       }	
     }
   }
+
+  fTurnNumber=(NumOfCDC_0+1)/2;
     
   COMET::IChannelId tmpchanId;
 
@@ -199,6 +220,20 @@ void ITracking::LoadMCHits(COMET::IHandle<COMET::IHitSelection> hitHandle, COMET
 	fWireLayerId[fnCALCDCHit]=layer;
 	fWireId[fnCALCDCHit]=wireid;
       }            
+    }
+  }
+}
+
+void ITracking::ShuffleMCHits(){
+  for (int i_swap=0; i_swap<1000; i_swap++){
+    int i = rand() % fnCDCHit;
+    int j = rand() % fnCDCHit;
+    if (i!=j){
+      std::swap(fCDCHitX[i], fCDCHitX[j]);
+      std::swap(fCDCHitY[i], fCDCHitY[j]);
+      std::swap(fCDCHitZ[i], fCDCHitZ[j]);
+      std::swap(fCDCHitT[i], fCDCHitY[j]);
+      std::swap(fCDCEDep[i], fCDCEDep[j]);
     }
   }
 }

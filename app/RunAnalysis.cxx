@@ -32,7 +32,10 @@ public:
   TMyEventLoop(): 
     fFileName("default.root"), 
     fFileMode("recreate"), 
-    fOutputDir("../anal")
+    fOutputDir("../anal"),
+
+    fCoincidenceCount(0),
+    fSaveHoughTransform(0)
   {}
   virtual ~TMyEventLoop() {}
  
@@ -95,8 +98,6 @@ public:
     IMCTrigger* MCTrigger = new IMCTrigger("mctrigger", "MC trigger");
     IHoughTransform* HoughTransform = new IHoughTransform("houghtransform","Hough Transform");
     IGenFitting* GenFitting = new IGenFitting("genfitting", "GenFitting");
-    //GenFitting->ImportEnvironments(fGeoManager,fFieldManager);
-    GenFitting->Init();
 
     ////////////////////////////////////////////////////
     //////              Trigger                  ///////               
@@ -126,19 +127,24 @@ public:
       Reco2DCharge      =HoughTransform->Get2DCharge();
       RecoMaxWireLayerId=HoughTransform->GetMaxWireLayerId();      
       HoughTransform->PrintResults();
-      //HoughTransform->DrawEvent(c_hits);
-      //c_hits->SaveAs("./EventId"+TString(Form ("%d", EventId))+".png");
+      if (fSaveHoughTransform){
+	HoughTransform->DrawEvent(c_hits);
+	c_hits->SaveAs("./EventId"+TString(Form ("%d", EventId))+".png");
+      }
       fCoincidenceCount++;
-
       
       if (RecoMaxWireLayerId>=4 && Reco2DCharge==-1 && RecoCL3==1){
-	//GenFitting->LoadHitsAfterHT(CDCHits_DetResp, HoughTransform);
-	GenFitting->LoadMCHits(CDCHits_DetResp, Trajectories, CDCHits);
+	GenFitting->Init();
+	GenFitting->LoadMCHits(CDCHits_DetResp, Trajectories, CDCHits);       
+	GenFitting->ShuffleMCHits();
+	GenFitting->LoadHitsAfterHT(CDCHits_DetResp, HoughTransform);
+	
 	if (!GenFitting->doFit()) {
 	  std::cout << "Fitting Failed" << std::endl; 
 	  return true;
 	}
 	GenFitting->AddEvent(display);
+	
       }      
     }
     
@@ -163,10 +169,13 @@ private:
   std::string fFileName;
   std::string fFileMode;  
 
-  int fCoincidenceCount=0;
+  /*** Trigger ***/
+  int fCoincidenceCount;
 
-  COMET::IFieldManager* fFieldManager;
-  TGeoManager *fGeoManager ;
+  /*** HoughTransform ***/
+  bool fSaveHoughTransform;
+
+  /*** GenFitting ***/
   genfit::EventDisplay* display;
 };
 

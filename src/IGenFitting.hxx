@@ -51,6 +51,8 @@ public:
   void LoadMCHits(COMET::IHandle<COMET::IHitSelection> hitHandle, COMET::IHandle<COMET::IG4TrajectoryContainer> trajectories,COMET::IHandle<COMET::IG4HitContainer> cdcHits){
     ITracking::LoadMCHits(hitHandle, trajectories, cdcHits);
   }  
+  void ShuffleMCHits(){ ITracking::ShuffleMCHits(); }
+
   void LoadHitsAfterHT(COMET::IHandle<COMET::IHitSelection> hitHandle, IHoughTransform* hough);
   void AddEvent(genfit::EventDisplay* display) {  display->addEvent(fitTrack); } 
 
