@@ -15,6 +15,7 @@
 #include "TGeoNode.h"
 #include "TTree.h"
 #include "TCanvas.h"
+#include "TFile.h"
 
 #include <ICOMETLog.hxx>
 
@@ -55,9 +56,14 @@ public:
 
   void LoadHitsAfterHT(COMET::IHandle<COMET::IHitSelection> hitHandle, IHoughTransform* hough);
   void AddEvent(genfit::EventDisplay* display) {  display->addEvent(fitTrack); } 
-
-  int doFit();
-  //genfit::Track* GetFitTrack(){ return fFitTrack; }
+  
+  int DoFit();
+  double GetFittedMom() { return fpFit; }
+  double GetChi2() { return fChi2; }
+  int GetNdf()  { return fNdf;  }
+  double GetChi2Ndf() { return fChi2Ndf; }
+  double GetInitialMom() { return sqrt(pow(fGenTrPx,2)+pow(fGenTrPy,2)+pow(fGenTrPz,2)); }
+  double GetCDCEntranceMom() { return sqrt(pow(fCDCEnterPx,2)+pow(fCDCEnterPy,2)+pow(fCDCEnterPz,2)); }
 
 private:
 
@@ -79,10 +85,19 @@ private:
   Bool_t   fUseMCTruth;    /// Flag to use MC true hit position  
   Bool_t   fSmearing;      /// enable Gaussian smearing for the drift distance using given fSigmaD  
   Double_t fSigmaD;        /// position resolution  
-  
+  Double_t fSigmaWP;        /// Wire Position resolution
+  Bool_t   fSaveHistogram; /// Flage to save Hitogram
+
   genfit::Track* fitTrack;
   TGeoManager* fGeoManager;
   COMET::IFieldManager* fFieldManager;
-
+  double fpFit;
+  double fChi2;
+  int    fNdf;
+  double fChi2Ndf;
+  
+  TTree   *fTree;
+  //Double_t fFittedMom;
+  //TH1D     fFittedMomHist;
 };
 #endif

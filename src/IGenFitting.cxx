@@ -5,6 +5,7 @@
 /////////////////////////////////////////////////////////////////
 #include <vector>
 #include <iostream>
+#include <assert.h>
 
 #include <IOADatabase.hxx>
 #include <IGenFitting.hxx>
@@ -77,8 +78,9 @@ IGenFitting::IGenFitting(const char* name, const char* title)
   :ITracking(name, title)
   ,fUseBetheBloch(true)
   ,fUseBrems(false)
-  ,fMethod("KalmanFitter")
-   //,fMethod("DAF")
+   //,fMethod("KalmanFitterRefTrack")
+   //,fMethod("KalmanFitter") // "KalmanFitter -> Good for Spacepoint Measurement
+  ,fMethod("DAF")       // DAF -> Work for WireMeasurement
   ,fPID(11)
   ,fMinIterations(10)
   ,fMaxIterations(50)
@@ -94,8 +96,11 @@ IGenFitting::IGenFitting(const char* name, const char* title)
   ,fUseMCTruth(true)
   ,fSmearing(false)
   ,fSigmaD(0.02)
+   //,fSigmaD(0.1)
+  ,fSigmaWP(0.001)
+  ,fSaveHistogram(true)
 {
-  ; //if (fSaveTree) fTree = new TTree("gftree", "GenFit tree");
+  //if (fSaveTree) fTree = new TTree("gftree", "GenFit tree");
 }
 
 IGenFitting::~IGenFitting()
@@ -134,10 +139,14 @@ int IGenFitting::EndOfEvent()
 }    
 
 void IGenFitting::LoadHitsAfterHT(COMET::IHandle<COMET::IHitSelection> hitHandle, IHoughTransform* hough){  
-  std::vector<int> wireId;
-  wireId=hough->GetRecoWireId();
+  std::vector<int> wireId      = hough->GetRecoWireId();
+  std::vector<double> driftDist= hough->GetRecoDriftDist();
+
   fnCALCDCHit=wireId.size();
-  for (int i=0; i<wireId.size(); i++){
+  assert(fnCALCDCHit==hough->GetNumberOfRecognizedHits());
+  assert(wireId.size() == driftDist.size());
+
+  for (int i=0; i<fnCALCDCHit; i++){
     int wire = wireId.at(i);
     fWireId[i]=wire;
     fWireEnd0X[i] = COMET::IGeomInfo::Get().CDC().GetWireEnd0(wire).X();
@@ -146,12 +155,13 @@ void IGenFitting::LoadHitsAfterHT(COMET::IHandle<COMET::IHitSelection> hitHandle
     fWireEnd1X[i] = COMET::IGeomInfo::Get().CDC().GetWireEnd1(wire).X();
     fWireEnd1Y[i] = COMET::IGeomInfo::Get().CDC().GetWireEnd1(wire).Y();
     fWireEnd1Z[i] = COMET::IGeomInfo::Get().CDC().GetWireEnd1(wire).Z();
-
+    fDriftDist[i] = driftDist.at(i);
     //std::cout << i << "   " << fWireEnd0X[i] << "   " << fWireEnd0Y[i] << "   " << fWireEnd0Z[i] << std::endl;
   }
 }  
 
-int IGenFitting::doFit(){
+int IGenFitting::DoFit(){
+
 
   //genfit::Track * tmpTrack(NULL);
   //fFitTrack = tmpTrack;
@@ -163,10 +173,21 @@ int IGenFitting::doFit(){
   Double_t momMag = 105;
   Double_t px, py, pz;
   rand.Sphere(px,py,pz,105);
+
   /// Set initial position and state
-  TVector3 posInit = TVector3(640.,0.,765.);// cm unit
-  TVector3 momInit = TVector3(px,py,pz); //    MeV unit
-  
+
+  // 1. Random Momentum
+  //TVector3 posInit = TVector3(640.,0.,765.);// cm unit
+  //TVector3 momInit = TVector3(px,py,pz); //    MeV unit
+
+  // 2. True Birth value  
+  //TVector3 posInit = TVector3(fGenTrX,fGenTrY,fGenTrZ);     // cm unit
+  //TVector3 momInit = TVector3(fGenTrPx,fGenTrPy,fGenTrPz); // MeV unit
+
+  // 3. True Entering value  
+  TVector3 posInit = TVector3(fCDCEnterX,fCDCEnterY,fCDCEnterZ);     // cm unit
+  TVector3 momInit = TVector3(fCDCEnterPx,fCDCEnterPy,fCDCEnterPz); // MeV unit
+
   /// Temporal solution to convert the unit
   //posInit *= 0.1;   /// Convert from mm to cm
   momInit *= 0.001; /// Convert from MeV to GeV
@@ -225,14 +246,15 @@ int IGenFitting::doFit(){
       TVectorD wireMes(7);       /// Wire end0(x,y,z), end1(x,y,z), drift distance
       TMatrixDSym wireMatrix(7); /// Uncertainties for wireMes values
       
-      std::cout << "Hit Info " << i_hit << "  " << fWireEnd0X[i_hit] << "  " << fWireEnd0Y[i_hit] << "  " << fWireEnd0Z[i_hit] << std::endl;
+      //std::cout << "Hit Info " << i_hit << "  " << fWireEnd0X[i_hit] << "  " << fWireEnd0Y[i_hit] << "  " << fWireEnd0Z[i_hit] << "  " << fDriftDist[i_hit] <<  std::endl;
       wireMes[0] = fWireEnd0X[i_hit];
       wireMes[1] = fWireEnd0Y[i_hit];
       wireMes[2] = fWireEnd0Z[i_hit];
       wireMes[3] = fWireEnd1X[i_hit];
       wireMes[4] = fWireEnd1Y[i_hit];
       wireMes[5] = fWireEnd1Z[i_hit];
-      wireMes[6] = 0.;      
+      //wireMes[6] = 0.1;
+      wireMes[6] = fDriftDist[i_hit];      
       trackPoints.push_back(new genfit::TrackPoint());
 
       if (fSmearing) wireMes[6] += gRandom->Gaus(0, fSigmaD); /// drift distance is smeared by fSigmaD
@@ -240,7 +262,7 @@ int IGenFitting::doFit(){
       for (int row = 0; row < 7; row++) {
 	for (int col = 0; col < 7; col++) {
 	  if (row != col) wireMatrix(row,col) = 0;
-	  if (row < 6)    wireMatrix(row,col) = std::pow(0.001,2);   /// Wire position uncertainties (temporary 10um)
+	  if (row < 6)    wireMatrix(row,col) = std::pow(fSigmaWP,2);   /// Wire position uncertainties (temporary 10um)
 	  else            wireMatrix(row,col) = std::pow(fSigmaD,2); /// Resolution of drift distance
 	}
       }
@@ -300,23 +322,26 @@ int IGenFitting::doFit(){
 
   /// Do the fitting
   try{
+    //if (fMethod=="DAF") kalman->processTrackWithRep(fitTrack, rep);
+    //else if (fMethod!="DAF") kalman->processTrack(fitTrack);
     kalman->processTrack(fitTrack);
   }catch(genfit::Exception& e){e.what();}
 
   if (!fitTrack->getFitStatus(rep)->isFitConverged()) {
+    //if (fMethod=="DAF") kalman->processTrackWithRep(fitTrack, rep);
+    //else if (fMethod!="DAF") kalman->processTrack(fitTrack);
     kalman->processTrack(fitTrack);
   }
-  /*
+  
   if (!fitTrack->getFitStatus(rep)->isFitted()||!fitTrack->getFitStatus(rep)->isFitConverged()) {
 
     COMETNamedInfo("IGenFitter", "Fitting is failed...");
     std::cout << "Fitting is failed..." << std::endl;
     delete kalman;
-    delete fitTrack;
+    //delete fitTrack;
     return NULL;
   }
-  */
-  /*
+    
   if (fitTrack->getFitStatus(rep)->getChi2()<=0 ||
       (fitTrack->getFitStatus(rep)->getNdf()-2*nVirtualPlanes)<fMinNDF) {
     COMETNamedInfo("IGenFitter", "Fit result might be wrong... (chi2,ndf) = (" << 
@@ -324,25 +349,79 @@ int IGenFitting::doFit(){
                    (fitTrack->getFitStatus(rep)->getNdf()-2*nVirtualPlanes) << ")");
     std::cout << "Fit result might be wrong..." << std::endl;
     delete kalman;
-    delete fitTrack;
+    //delete fitTrack;
     return NULL;
   }
-  */
+  
 
   genfit::TrackPoint* tp = fitTrack->getPointWithMeasurementAndFitterInfo(0, rep);
   genfit::KalmanFittedStateOnPlane kfsop(*(static_cast<genfit::KalmanFitterInfo*>(tp->getFitterInfo(rep))->getBackwardUpdate()));
   const TVectorD& state = kfsop.getState();
   const TMatrixDSym& cov = kfsop.getCov();
+  fpFit = TMath::Abs(1./state[0]);
 
-  double pFit = TMath::Abs(1./state[0]);
-  std::cout << "Fitted Momentum is: " << pFit << std::endl;
+  fChi2 = fitTrack->getFitStatus(rep)->getChi2();
+  fNdf = fitTrack->getFitStatus(rep)->getNdf();  
+  fChi2Ndf = fChi2/fNdf;
+  std::cout << "Fitted Momentum is: " << fpFit << std::endl;
   std::cout << std::endl;
-
-  //fFitTrack = fitTrack;
 
   delete kalman;
   //delete fitTrack;
-  
+
+  const std::vector<genfit::TrackPoint*> points = fitTrack->getPoints();
+  COMET::IReconTrack* reconTrack = new COMET::IReconTrack();
+  Int_t posStateIdx, dirStateIdx, momStateIdx;
+  posStateIdx = dirStateIdx = momStateIdx = -1;
+  Double_t tmpT = 0., tmpL = 0.;
+  std::vector<Double_t> time;
+  std::vector<Double_t> length;
+  std::vector<Int_t> usedHit;
+  TVector3    posOnPlane;
+  TVector3    momOnPlane;
+  TMatrixDSym covOnPlane(6);
+  /*
+  for (int i_hit = 0; i_hit < nTotalHits; i_hit++) {
+    // get fitted status of fit track
+    int hitId = (points.at(i_hit))->getRawMeasurement(0)->getHitId();
+    int detId = (points.at(i_hit))->getRawMeasurement(0)->getDetId();
+    if(hitId<0) continue;
+
+    genfit::MeasuredStateOnPlane mop;
+
+    if (i_hit==10){
+      mop = fitTrack->getFittedState(i_hit,rep);
+      mop.getPosMomCov(posOnPlane,momOnPlane,covOnPlane);
+      fpFit  = momOnPlane.Mag();
+      fpFit *= 1e3;     
+    }
+  }
+  */
+    /*
+    if (points.at(i_hit) != NULL) {
+      mop = fitTrack->getFittedState(i_hit,rep);
+      //if ((points.at(i_hit))->hasFitterInfo(rep)) {
+      //  res = (points.at(i_hit))->getKalmanFitterInfo(rep)->getResidual(); // not used now
+      //}
+      try{
+        mop.getPosMomCov(posOnPlane,momOnPlane,covOnPlane);
+      } catch(genfit::Exception& e){ e.what();continue; }
+    } else continue;
+
+    //if (i_hit==0) {
+    if (i_hit==10) {
+      fpFit  = momOnPlane.Mag();
+      fpFit *= 1e3;
+      //fFittedPosition  = posOnPlane;
+      //COMETNamedDebug("IGenFitter", " Chi2/NDF          = "
+      //                << chi2/ndf << " ( " << chi2 << " / " << ndf << " ) " << " nHits " << nHits);
+      //COMETNamedDebug("IGenFitter", " Fitted momentum   = " << fFittedMomentum.Mag() << " MeV");
+      //COMETNamedDebug("IGenFitter", " Momentum Residual = " << fFittedMomentum.Mag()-fInitialMomentum.Mag() << " MeV");
+    }
+  }
+    */
+
+
   return 1;
 }
 

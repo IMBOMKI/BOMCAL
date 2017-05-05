@@ -156,14 +156,23 @@ public:
   std::vector<std::pair<double,double> > MakeOrigins(double rad_uncertainty, std::pair<double,double> ref);
   void Process();
   void RecognizeHits();
+
+  ////////////// After Transformation ///////////////
+
+  std::vector<int> GetRecoWireId();
+  std::vector <double> GetRecoDriftDist();
+
+  int  GetTurnNumber() { return ITracking::GetTurnNumber(); }
   bool GetCL3()            {return fRecoCL3;}
   int  GetMaxWireLayerId() {return fRecoMaxWireLayerId;}
   int  Get2DCharge()       {return fReco2DCharge;}
+  int  GetNumberOfRecognizedHits()   {return fnRecoHit; }
+
+
   void DrawEvent(TCanvas* canvas);
-  void GetMasterCoordinate(); // Not used
-  std::vector<int> GetRecoWireId();
   void PrintMCStatus();
   void PrintResults();
+  
 
   /// called at the end of run or else (should not be in event-by-event)
   int  Finish();

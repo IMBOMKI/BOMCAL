@@ -84,7 +84,28 @@ void ITracking::LoadMCHits(COMET::IHandle<COMET::IHitSelection> hitHandle, COMET
 	fGenTrPx=iniMom(0);
 	fGenTrPy=iniMom(1);
 	fGenTrPz=iniMom(2);
-	fGenTrE=traj.GetInitialMomentum()(3);	      
+	fGenTrE=traj.GetInitialMomentum()(3);	      	
+
+	COMET::IG4Trajectory::Points trajPointSet = traj.GetTrajectoryPoints();
+	for(COMET::IG4Trajectory::Points::iterator trajIter = trajPointSet.begin(); trajIter!=trajPointSet.end(); trajIter++ ){
+	  COMET::IG4TrajectoryPoint trajPoint = *trajIter;
+	  TVector3 tmpPosition = trajPoint.GetPosition().Vect()*(1/unit::cm);
+	  //std::cout << GetNode(tmpPosition)->GetName() << std::endl;
+	  if (TString(GetNode(tmpPosition)->GetName())=="CDCSenseLayer_0_0") {
+	    TVector3 enterPos = trajPoint.GetPosition().Vect()*(1/unit::cm);
+	    TVector3 enterMom = trajPoint.GetMomentum()*(1/unit::MeV);
+	    fCDCEnterX = enterPos(0);
+	    fCDCEnterY = enterPos(1);
+	    fCDCEnterZ = enterPos(2);
+	    fCDCEnterT = trajPoint.GetPosition()(3)*(1/unit::ns);
+	    fCDCEnterPx= enterMom(0);
+	    fCDCEnterPy= enterMom(1);
+	    fCDCEnterPz= enterMom(2);	    
+	    //std::cout << fCDCEnterX << "   " << fCDCEnterY << "   " << fCDCEnterZ << "   " << fCDCEnterT << std::endl;
+	    //std::cout << fCDCEnterPx << "   " << fCDCEnterPy << "   " << fCDCEnterPz << "   "<< std::endl;
+	      break;
+	  }
+	}	  		
       }
     }
   }
@@ -92,6 +113,7 @@ void ITracking::LoadMCHits(COMET::IHandle<COMET::IHitSelection> hitHandle, COMET
   std::vector<TString> CDCHitGeometry;
   CDCHitGeometry.push_back("Default");
   int NumOfCDC_0=0;
+  int NumOfCDC_1=0;
 
   if (cdcHits){
     for(COMET::IG4HitContainer::const_iterator hitSeg = cdcHits->begin(); hitSeg != cdcHits->end(); ++hitSeg) {
@@ -126,6 +148,9 @@ void ITracking::LoadMCHits(COMET::IHandle<COMET::IHitSelection> hitHandle, COMET
 	      if (geoName=="CDCSenseLayer_0_0"){
 		NumOfCDC_0++;
 	      }
+	      if (geoName=="CDCSenseLayer_1_0"){
+		NumOfCDC_1++;
+	      }
 	    }
 	  }	  
 	  fTurnId[fnCDCHit]=NumOfCDC_0-1;
@@ -134,9 +159,9 @@ void ITracking::LoadMCHits(COMET::IHandle<COMET::IHitSelection> hitHandle, COMET
       }	
     }
   }
-
-  fTurnNumber=(NumOfCDC_0+1)/2;
-    
+  //std::cout << "NumOfCDC_1: " << NumOfCDC_1 << std::endl;
+  fTurnNumber=NumOfCDC_1/2;
+  
   COMET::IChannelId tmpchanId;
 
   if (hitHandle){
@@ -163,7 +188,7 @@ void ITracking::LoadMCHits(COMET::IHandle<COMET::IHitSelection> hitHandle, COMET
       wireMes[3] = COMET::IGeomInfo::Get().CDC().GetWireEnd1(wire).X();
       wireMes[4] = COMET::IGeomInfo::Get().CDC().GetWireEnd1(wire).Y();
       wireMes[5] = COMET::IGeomInfo::Get().CDC().GetWireEnd1(wire).Z();
-      wireMes[6] = (*hitSeg)->GetDriftDistance();
+      wireMes[6] = (*hitSeg)->GetDriftDistance()*(1/unit::cm);
       
       TVector3 wireend0(wireMes[0],wireMes[1],wireMes[2]);	
       TVector3 wireend1(wireMes[3],wireMes[4],wireMes[5]);

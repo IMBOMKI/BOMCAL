@@ -192,6 +192,15 @@ public:
     trdata->Branch("genTrPz", &genTrPz, "genTrPz/D");
     trdata->Branch("genTrE", &genTrE, "genTrE/D");
 
+    trdata->Branch("CDCEnterX", &CDCEnterX, "CDCEnterX/D");
+    trdata->Branch("CDCEnterY", &CDCEnterY, "CDCEnterY/D");
+    trdata->Branch("CDCEnterZ", &CDCEnterZ, "CDCEnterZ/D");
+    trdata->Branch("CDCEnterT", &CDCEnterT, "CDCEnterT/D");
+    trdata->Branch("CDCEnterPx", &CDCEnterPx, "CDCEnterPx/D");
+    trdata->Branch("CDCEnterPy", &CDCEnterPy, "CDCEnterPy/D");
+    trdata->Branch("CDCEnterPz", &CDCEnterPz, "CDCEnterPz/D");
+    trdata->Branch("CDCEnterE",  &CDCEnterE,  "CDCEnterE/D");
+
     trdata->Branch("PairVertexX", &PairVertexX, "PairVertexX/D");
     trdata->Branch("PairVertexY", &PairVertexY, "PairVertexY/D");
     trdata->Branch("PairVertexZ", &PairVertexZ, "PairVertexZ/D");
@@ -294,6 +303,15 @@ public:
     genTrPz=0;
     genTrE=0;
 
+    CDCEnterX=0;
+    CDCEnterY=0;
+    CDCEnterZ=0;
+    CDCEnterY=0;
+    CDCEnterPx=0;
+    CDCEnterPy=0;
+    CDCEnterPz=0;
+    CDCEnterE=0;
+
     PairVertexX=0;
     PairVertexY=0;
     PairVertexZ=0;
@@ -343,9 +361,8 @@ public:
 	
 	COMET::IG4Trajectory traj = (*seg).second;
 
+
 	/*------  Primary Gamma Information -----*/
-
-
 
 	if (traj.GetTrackId() == 1){
 	  TVector3 iniPos = traj.GetInitialPosition().Vect()*(1/unit::cm);
@@ -361,7 +378,27 @@ public:
 	  genTrPz=iniMom(2);
 	  genTrE=traj.GetInitialMomentum()(3);	  
 
-	  //	  std::cout << genTrX << " "  << genTrE << std::endl;
+	  COMET::IG4Trajectory::Points trajPointSet = traj.GetTrajectoryPoints();
+	  for(COMET::IG4Trajectory::Points::iterator trajIter = trajPointSet.begin(); trajIter!=trajPointSet.end(); trajIter++ ){
+	    COMET::IG4TrajectoryPoint trajPoint = *trajIter;
+	    TVector3 tmpPosition = trajPoint.GetPosition().Vect()*(1/unit::cm);
+	    //std::cout << GetNode(tmpPosition)->GetName() << std::endl;
+	    if (TString(GetNode(tmpPosition)->GetName())=="CDCSenseLayer_0_0") {
+	      TVector3 enterPos = trajPoint.GetPosition().Vect()*(1/unit::cm);
+	      TVector3 enterMom = trajPoint.GetMomentum()*(1/unit::MeV);
+	      CDCEnterX = enterPos(0);
+	      CDCEnterY = enterPos(1);
+	      CDCEnterZ = enterPos(2);
+	      CDCEnterT = trajPoint.GetPosition()(3)*(1/unit::ns);
+	      CDCEnterPx= enterMom(0);
+	      CDCEnterPy= enterMom(1);
+	      CDCEnterPz= enterMom(2);
+
+	      //std::cout << CDCEnterX << "   " << CDCEnterY << "   " << CDCEnterZ << "   " << CDCEnterT << std::endl;
+	      //std::cout << CDCEnterPx << "   " << CDCEnterPy << "   " << CDCEnterPz << "   "<< std::endl;
+	      break;
+	    }
+	  }	  
 	}
 
 	/*------  Pair Production Information -----*/
@@ -461,6 +498,7 @@ public:
     std::vector<TString> CDCHitGeometry_Prim;
     CDCHitGeometry_Prim.push_back("Default");
     int NumOfCDC_0_Prim=0;
+    int NumOfCDC_1_Prim=0;
     
     COMET::IHandle<COMET::IG4HitContainer> CDCHitCont = event.Get<COMET::IG4HitContainer>("truth/g4Hits/CDC");
     if (CDCHitCont){
@@ -484,11 +522,12 @@ public:
           TGeoNode* volume = GetNode(hitPos);
           TString geoName = TString(volume->GetName());
 
+	  /*
 	  if(!COMET::IGeomInfo::DetectorSolenoid().GetDetPositionInDSCoordinate(hitPos, hitPos)){
 	    continue;
 	    std::cout << "Mislocated hit is detected" << std::endl;
 	  }
-	  
+	  */
 	  
 	  if (ifPairProdOccurs==1 && trajContributors[0]==Pairep_TrackId && trajContributors.size()==1){
 	    if (CDCHit_PairepGeometry.back() != geoName){
@@ -511,6 +550,9 @@ public:
 		CDCHitGeometry_Prim.push_back(geoName);
 		if (geoName=="CDCSenseLayer_0_0"){
 		  NumOfCDC_0_Prim++;
+		}
+		if (geoName=="CDCSenseLayer_1_0"){
+		  NumOfCDC_1_Prim++;
 		}
 	      }
 	    }
@@ -555,7 +597,7 @@ public:
       }
     }
 
-    TurnNumber = (NumOfCDC_0_Prim+1)/2;
+    TurnNumber = NumOfCDC_1_Prim/2;
         
     if (ifPairProdOccurs==1 && nCDCHit_Pairem>0){
       for (Int_t i=0; i<nCDCHit_Pairem; i++){
@@ -626,10 +668,12 @@ public:
 	  COMET::ICTHChannelId CTHChannelId;
 	  COMET::IGeometryDatabase::Get().GetChannelId(CTHChannelId, CTHId);
 
+	  /*
 	  if(!COMET::IGeomInfo::DetectorSolenoid().GetDetPositionInDSCoordinate(hitPos, hitPos)){
 	    continue;
 	    std::cout << "Mislocated hit is detected" << std::endl;
 	  }
+	  */
 
 	  //std::cout << CTHChannelId.GetScint() << "   " << CTHChannelId.GetLightGuide() << "   " << geoName << "   " << CTHChannelId.GetCounter() << "   " << CTHChannelId.GetModule() << std::endl;
        
@@ -719,13 +763,15 @@ public:
 	TVector3 wireend0(wireMes[0],wireMes[1],wireMes[2]);	
 	TVector3 wireend1(wireMes[3],wireMes[4],wireMes[5]);
 	Double_t Drfit = (*hitSeg)->GetDriftDistance();
+	
+	/*
 	if(!COMET::IGeomInfo::DetectorSolenoid().GetDetPositionInDSCoordinate(wireend0, wireend0)){
 	  continue;
 	  std::cout << "MisIdentifided wire is detected" << std::endl;}
 	if(!COMET::IGeomInfo::DetectorSolenoid().GetDetPositionInDSCoordinate(wireend1, wireend1)){
 	  continue;
 	  std::cout << "MisIdentifided wire is detected" << std::endl;}
-
+	*/
 
 	int layer = COMET::IGeomInfo::Get().CDC().GetLayer(wire);
 	if (WireMaxLayerId<layer){
@@ -882,6 +928,15 @@ private:
   Double_t genTrPy;
   Double_t genTrPz;
   Double_t genTrE;
+
+  Double_t CDCEnterX;
+  Double_t CDCEnterY;
+  Double_t CDCEnterZ;
+  Double_t CDCEnterT;
+  Double_t CDCEnterPx;
+  Double_t CDCEnterPy;
+  Double_t CDCEnterPz;
+  Double_t CDCEnterE;
     
   Double_t PairVertexX;
   Double_t PairVertexY;

@@ -34,6 +34,14 @@ protected:
   double fGenTrPz;
   double fGenTrE;
 
+  double fCDCEnterX;
+  double fCDCEnterY;
+  double fCDCEnterZ;
+  double fCDCEnterT;
+  double fCDCEnterPx;
+  double fCDCEnterPy;
+  double fCDCEnterPz;
+
   int fnCDCHit;
   double fCDCHitX[10000];
   double fCDCHitY[10000];
@@ -68,6 +76,8 @@ public:
   void ShuffleMCHits();
 
   void PrintMCStatus();
+
+  int GetTurnNumber() { return fTurnNumber; }
 
   /// called at the end of run or else (should not be in event-by-event)
   int  Finish();

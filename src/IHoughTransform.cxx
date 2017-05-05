@@ -643,9 +643,9 @@ void IHoughTransform::RecognizeHits(){
   }       
 }
 
-void IHoughTransform::GetMasterCoordinate(){
-  
-}
+//void IHoughTransform::GetMasterCoordinate(){
+//  
+//}
 
 void IHoughTransform::PrintMCStatus(){
   ITracking::PrintMCStatus();
@@ -844,6 +844,14 @@ std::vector<int> IHoughTransform::GetRecoWireId(){
     wireId.push_back(fRecoWireId[i]);
   }
   return wireId;
+}
+
+std::vector<double> IHoughTransform::GetRecoDriftDist(){
+  std::vector<double> driftDist;
+  for (int i=0; i<fnRecoHit; i++){
+    driftDist.push_back(fRecoDriftDist[i]);
+  }
+  return driftDist;
 }
 
 int IHoughTransform::Finish(){
