@@ -32,25 +32,27 @@ private:
   std::vector < Int_t > fCherenDownIndex;  // Up & Down Indices Normalized into fCTHSegNum Scale (<64)
 
   /*** Geometry Variables ***/
-  double fDiskRad=10.0;
-  int    fCTHSegNum=64;
-  int    fNumOfLayers=18;
-  double fScintRad=48.28;
-  double fScintWidth=9.;
-  double fScintHeight=0.5;
-  double fScintTiltAngle=13.;
-  double fCherenRad=44.78;
-  double fCherenWidth=9.;
-  double fCherenHeight=1.;
-  double fCherenTiltAngle=20.;
-  int    fNumOfWiresPerLayer[18]
-  ={198,204,210,216,222,228,234,240,246,252,258,264,270,276,282,288,294,300}; // Count only "Actual" Sense Wires
-  double fLayerRadius[18]
-  ={53.0, 54.6, 56.2, 57.8, 59.4, 61.0, 62.6, 64.2, 65.8, 67.4, 69.0, 70.6, 72.2, 73.8, 75.4, 77.0, 78.6, 80.2};
-  double fLayerStereo_TDR[18]
-  ={-67.899, 67.640, -67.384, 67.129, -66.876, 66.625, -66.376, 66.129, -65.884, 65.640, -65.398, 65.158, -64.920, 64.683, -75.132, 74.862, -74.593, 74.326}; // After ICEDUST modified we should use this one!
-  double fLayerStereo_CAL[18]
-  ={-67.004, 66.778, -66.553, 66.327, -66.102, 65.877, -65.652, 65.428, -65.205, 64.982, -64.761, 64.540, -64.319, 64.100, -74.472, 74.220, -73.969, 73.719}; // Up to now, we use this one...
+  double  fDiskRad;             //=10.0;
+  int     fCTHSegNum;           //=64;
+  int     fNumOfLayers;         //=18;
+  double  fScintRad;            //=48.28;
+  double  fScintWidth;          //=9.;
+  double  fScintHeight;         //=0.5;
+  double  fScintTiltAngle;      //=13.;
+  double  fCherenRad;           //=44.78;
+  double  fCherenWidth;         //=9.;
+  double  fCherenHeight;        //=1.;
+  double  fCherenTiltAngle;     //=20.;
+  int*    fNumOfWiresPerLayer;
+  double* fLayerRadius;
+  //int    fNumOfWiresPerLayer[18]
+  //={198,204,210,216,222,228,234,240,246,252,258,264,270,276,282,288,294,300}; // Count only "Actual" Sense Wires
+  //double fLayerRadius[18]
+  //={53.0, 54.6, 56.2, 57.8, 59.4, 61.0, 62.6, 64.2, 65.8, 67.4, 69.0, 70.6, 72.2, 73.8, 75.4, 77.0, 78.6, 80.2};
+  //double fLayerStereo_TDR[18]
+  //={-67.899, 67.640, -67.384, 67.129, -66.876, 66.625, -66.376, 66.129, -65.884, 65.640, -65.398, 65.158, -64.920, 64.683, -75.132, 74.862, -74.593, 74.326}; // After ICEDUST modified we should use this one!
+  //double fLayerStereo_CAL[18]
+  //={-67.004, 66.778, -66.553, 66.327, -66.102, 65.877, -65.652, 65.428, -65.205, 64.982, -64.761, 64.540, -64.319, 64.100, -74.472, 74.220, -73.969, 73.719}; // Up to now, we use this one...
   //double fZOffset[18]
   //={-73.6843, -73.9348,-74.2353,-74.5358, -74.7863, -75.0868, 0,0,0,0,0,0,0,0,0,0,0,0};
   

@@ -76,8 +76,26 @@ IHoughTransform::IHoughTransform(const char* name = "IHoughTransform", const cha
    fnRecoHit_even(0),
    fnRecoHit_odd(0),
    fRecoCL3(0),
-   fReco2DCharge(0)
-{;}
+   fReco2DCharge(0),
+
+   /*** Geometry Variables ***/
+   fDiskRad(10.0),
+   fCTHSegNum(64),
+   fNumOfLayers(18),
+   fScintRad(48.28),
+   fScintWidth(9.0),
+   fScintHeight(0.5),
+   fScintTiltAngle(13.),
+   fCherenRad(44.78),
+   fCherenWidth(9.0),
+  fCherenHeight(1.0),
+  fCherenTiltAngle(20.)
+{ 
+  fNumOfWiresPerLayer = new int[18]{198,204,210,216,222,228,234,240,246,252,258,264,270,276,282,288,294,300};
+  fLayerRadius        = new double[18]{53.0, 54.6, 56.2, 57.8, 59.4, 61.0, 62.6, 64.2, 65.8, 67.4, 69.0, 70.6, 72.2, 73.8, 75.4, 77.0, 78.6, 80.2};
+}
+
+
 IHoughTransform::~IHoughTransform(){;}
 
 int IHoughTransform::Init()

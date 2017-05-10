@@ -16,6 +16,7 @@
 
 #include <IHitSelection.hxx>
 #include <IMCHit.hxx>
+#include <IG4VHit.hxx>
 #include <IG4HitSegment.hxx>
 #include <IG4HitCalo.hxx>
 #include <IHit.hxx>
@@ -162,6 +163,78 @@ void ITracking::LoadMCHits(COMET::IHandle<COMET::IHitSelection> hitHandle, COMET
   //std::cout << "NumOfCDC_1: " << NumOfCDC_1 << std::endl;
   fTurnNumber=NumOfCDC_1/2;
   
+
+  
+  std::map <COMET::IG4HitSegment*, std::vector<COMET::IMCHit*> > HitMap;
+  std::vector <COMET::IG4HitSegment*> g4HitOrder;
+  std::vector <int> wireIdList;
+  
+  if (hitHandle){
+    COMET::IHitSelection *hits = GetPointer(hitHandle);
+    for (COMET::IHitSelection::const_iterator hitSeg = hits->begin(); hitSeg != hits->end(); hitSeg++){
+      /// Find SimG4 Hit contributors
+      COMET::IMCHit *mcHit = dynamic_cast<COMET::IMCHit*>(GetPointer(*hitSeg));
+      std::vector<COMET::IG4VHit*> hitContributors = mcHit->GetContributors();	
+      COMET::IG4HitSegment* g4Contributor = dynamic_cast<COMET::IG4HitSegment*>(hitContributors.at(0)); // Currently use only one contributor...
+      
+      if ( HitMap.find(g4Contributor) == HitMap.end()){      // if NOT exist in map
+	std::vector<COMET::IMCHit*> HitVector; HitVector.push_back(mcHit);
+	HitMap.insert(std::make_pair(g4Contributor,HitVector));
+	g4HitOrder.push_back(g4Contributor);
+      }
+      
+      else if ( HitMap.find(g4Contributor) != HitMap.end()){ // if exist in map
+	HitMap[g4Contributor].push_back(mcHit);
+	//std::cout << HitMap[g4Contributor].size() << std::endl;
+      }
+    }
+  }
+  
+  //  for (std::map< COMET::IG4HitSegment* ,std::vector<COMET::IMCHit* > >::iterator it=HitMap.begin(); it!=HitMap.end(); ++it){
+  for (int i_hit=0 ; i_hit<g4HitOrder.size(); i_hit++){
+    //COMET::IG4HitSegment* g4HitSeg = it->first;
+    //std::vector<COMET::IMCHit*> MCHitVector = it->second; 
+    
+    COMET::IG4HitSegment* g4HitSeg = g4HitOrder.at(i_hit);
+    std::vector<COMET::IMCHit*> MCHitVector = HitMap[g4HitSeg];
+
+    TVectorD wireMes(7);	
+    
+    COMET::IGeometryId geomId = MCHitVector[0]->GetGeomId();
+    int wire = COMET::IGeomInfo::Get().CDC().GeomIdToWire(geomId);
+    
+    if (std::find(wireIdList.begin(), wireIdList.end(), wire) != wireIdList.end() ) continue;
+    wireIdList.push_back(wire);
+
+    fCDCCharge[fnCALCDCHit]    = MCHitVector.size();    
+    fWireEnd0X[fnCALCDCHit]    = COMET::IGeomInfo::Get().CDC().GetWireEnd0(wire).X();
+    fWireEnd0Y[fnCALCDCHit]    = COMET::IGeomInfo::Get().CDC().GetWireEnd0(wire).Y();
+    fWireEnd0Z[fnCALCDCHit]    = COMET::IGeomInfo::Get().CDC().GetWireEnd0(wire).Z();
+    fWireEnd1X[fnCALCDCHit]    = COMET::IGeomInfo::Get().CDC().GetWireEnd1(wire).X();
+    fWireEnd1Y[fnCALCDCHit]    = COMET::IGeomInfo::Get().CDC().GetWireEnd1(wire).Y();
+    fWireEnd1Z[fnCALCDCHit]    = COMET::IGeomInfo::Get().CDC().GetWireEnd1(wire).Z();
+    fWireId[fnCALCDCHit]       = wire;	  
+    int layer = COMET::IGeomInfo::Get().CDC().GetLayer(wire);
+    //std::cout << layer << std::endl;
+
+    fWireLayerId[fnCALCDCHit]  = layer;
+    if (fWireMaxLayerId<layer) fWireMaxLayerId = layer;
+    
+    TVector3 g4HitPos;
+    g4HitPos(0)=0.5 * (g4HitSeg->GetStopX()*(1/unit::cm)+g4HitSeg->GetStartX()*(1/unit::cm));
+    g4HitPos(1)=0.5 * (g4HitSeg->GetStopY()*(1/unit::cm)+g4HitSeg->GetStartY()*(1/unit::cm));
+    g4HitPos(2)=0.5 * (g4HitSeg->GetStopZ()*(1/unit::cm)+g4HitSeg->GetStartZ()*(1/unit::cm));
+    
+    TVector3 local;
+    if (!COMET::IGeomInfo::Get().CDC().GetDistanceFromWire(g4HitPos, wire, local)) continue;
+    fDriftDist[fnCALCDCHit]=hypot(local.x(),local.y());
+        
+    //std::cout << fDriftDist[fnCALCDCHit] << std::endl;
+    fnCALCDCHit++;
+  }
+  
+  /*
+  
   COMET::IChannelId tmpchanId;
 
   if (hitHandle){
@@ -176,9 +249,11 @@ void ITracking::LoadMCHits(COMET::IHandle<COMET::IHitSelection> hitHandle, COMET
       //std::cout << COMET::GeomId::CDC::IsActiveSenseWire(geomId) << std::endl;
       //std::cout << COMET::GeomId::CDC::GetWireId(geomId,sense,active) << std::endl;
 
+      COMET::IMCHit *mcHit = dynamic_cast<COMET::IMCHit*>(GetPointer(*hitSeg));
+      std::vector<COMET::IG4VHit*> hitContributors = mcHit->GetContributors();
+      
       int sense=-1; int active=-1;
       int wire = COMET::GeomId::CDC::GetWireId(geomId,sense,active);
-
       //std::cout << wire << std::endl;
             
       TVectorD wireMes(7);
@@ -208,11 +283,11 @@ void ITracking::LoadMCHits(COMET::IHandle<COMET::IHitSelection> hitHandle, COMET
       
       //std::cout <<  "X Pos: " << wireMes[0] << std::endl;
 
-      ///////////////////////////CALIBRATED HIT//////////////////////////////////////                
+      // Merge ionized electrons from same hits
       
       if (hitSeg == hits->begin()){
 	tmpchanId = chanId;
-	fCDCCharge[fnCALCDCHit]++;
+	fCDCCharge[fnCALCDCHit]=0; fCDCCharge[fnCALCDCHit]++;
 	fWireEnd0X[fnCALCDCHit]=wireend0(0);
 	fWireEnd0Y[fnCALCDCHit]=wireend0(1);
 	fWireEnd0Z[fnCALCDCHit]=wireend0(2);
@@ -226,15 +301,24 @@ void ITracking::LoadMCHits(COMET::IHandle<COMET::IHitSelection> hitHandle, COMET
       
       // When the next hit is at same Id                                                             
       if (chanId == tmpchanId){
+	fDriftDist[fnCALCDCHit]+=wireMes[6];
 	fCDCCharge[fnCALCDCHit]++;
       }
       
       // When the next hit generates at another Channel Id                                           
       else if (chanId != tmpchanId){
 
+	//std::cout << fWireEnd0X[fnCALCDCHit] << "  " << fWireEnd0Y[fnCALCDCHit] << "   " << fWireEnd0X[fnCALCDCHit] << "   " << fWireEnd1X[fnCALCDCHit] << "   " << fWireEnd1Y[fnCALCDCHit] << "   " << fWireEnd1Z[fnCALCDCHit] << "   " << fCDCCharge[fnCALCDCHit] << "   " << fDriftDist[fnCALCDCHit] << "   ";
+
+	// Average drift distance
+	fDriftDist[fnCALCDCHit]=fDriftDist[fnCALCDCHit]/fCDCCharge[fnCALCDCHit];
+
+	// Print to test values
+	//	std::cout << fDriftDist[fnCALCDCHit] << std::endl;
+
 	tmpchanId = chanId;
 	fnCALCDCHit++;
-	fCDCCharge[fnCALCDCHit]++;
+	fCDCCharge[fnCALCDCHit]=0; fCDCCharge[fnCALCDCHit]++;
 	fWireEnd0X[fnCALCDCHit]=wireend0(0);
 	fWireEnd0Y[fnCALCDCHit]=wireend0(1);
 	fWireEnd0Z[fnCALCDCHit]=wireend0(2);
@@ -247,6 +331,9 @@ void ITracking::LoadMCHits(COMET::IHandle<COMET::IHitSelection> hitHandle, COMET
       }            
     }
   }
+
+  */
+  
 }
 
 void ITracking::ShuffleMCHits(){

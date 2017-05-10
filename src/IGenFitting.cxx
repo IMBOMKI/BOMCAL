@@ -83,20 +83,20 @@ IGenFitting::IGenFitting(const char* name, const char* title)
   ,fMethod("DAF")       // DAF -> Work for WireMeasurement
   ,fPID(11)
   ,fMinIterations(10)
-  ,fMaxIterations(50)
-  ,fMinHitsInTrack(10)
-  ,fMinNDF(4)
-  ,fMaxMomentum(250)
-  ,fMinMomentum(50)
-  ,fMaxMomDiff(20)
+  ,fMaxIterations(100)
+   //,fMinHitsInTrack(10)
+   //,fMinNDF(4)
+   //,fMaxMomentum(250)
+   //,fMinMomentum(50)
+   //,fMaxMomDiff(20)
   ,fUseExtGeomFile(false)
   ,fGeometry("/home/bomki/ICEDUST/BOMKI_analysis/v999/utilities/Geometry/COMETGeometry_Full.root")
   ,fUseExtFieldFile(false)
   ,fFieldMap("/home/bomki/ICEDUST/local_storage/fieldmaps/150630_defaultFieldmap/load_fieldmaps.mac")
-  ,fUseMCTruth(true)
-  ,fSmearing(false)
-  ,fSigmaD(0.02)
-   //,fSigmaD(0.1)
+  ,fUseMCTruth(false)
+  ,fSmearing(true)
+   //,fSigmaD(0.02)
+  ,fSigmaD(0.01)
   ,fSigmaWP(0.001)
   ,fSaveHistogram(true)
 {
@@ -189,7 +189,6 @@ int IGenFitting::DoFit(){
   TVector3 momInit = TVector3(fCDCEnterPx,fCDCEnterPy,fCDCEnterPz); // MeV unit
 
   /// Temporal solution to convert the unit
-  //posInit *= 0.1;   /// Convert from mm to cm
   momInit *= 0.001; /// Convert from MeV to GeV
 
   COMETNamedInfo("IGenFitter", "Initial position = (" <<  posInit.x() << ", " << posInit.y() << ", " << posInit.z() << ") cm" <<
@@ -317,7 +316,7 @@ int IGenFitting::DoFit(){
   } else {
     COMETNamedInfo("IGenFitter", "This method is invalid: " << fMethod);
     delete fitTrack;
-    return NULL;
+    return 0;
   }
 
   /// Do the fitting
@@ -339,7 +338,7 @@ int IGenFitting::DoFit(){
     std::cout << "Fitting is failed..." << std::endl;
     delete kalman;
     //delete fitTrack;
-    return NULL;
+    return 0;
   }
     
   if (fitTrack->getFitStatus(rep)->getChi2()<=0 ||
@@ -350,7 +349,7 @@ int IGenFitting::DoFit(){
     std::cout << "Fit result might be wrong..." << std::endl;
     delete kalman;
     //delete fitTrack;
-    return NULL;
+    return 0;
   }
   
 
@@ -358,7 +357,7 @@ int IGenFitting::DoFit(){
   genfit::KalmanFittedStateOnPlane kfsop(*(static_cast<genfit::KalmanFitterInfo*>(tp->getFitterInfo(rep))->getBackwardUpdate()));
   const TVectorD& state = kfsop.getState();
   const TMatrixDSym& cov = kfsop.getCov();
-  fpFit = TMath::Abs(1./state[0]);
+  //fpFit = TMath::Abs(1./state[0]);
 
   fChi2 = fitTrack->getFitStatus(rep)->getChi2();
   fNdf = fitTrack->getFitStatus(rep)->getNdf();  
@@ -370,33 +369,30 @@ int IGenFitting::DoFit(){
   //delete fitTrack;
 
   const std::vector<genfit::TrackPoint*> points = fitTrack->getPoints();
-  COMET::IReconTrack* reconTrack = new COMET::IReconTrack();
   Int_t posStateIdx, dirStateIdx, momStateIdx;
   posStateIdx = dirStateIdx = momStateIdx = -1;
-  Double_t tmpT = 0., tmpL = 0.;
+  //Double_t tmpT = 0., tmpL = 0.;
   std::vector<Double_t> time;
   std::vector<Double_t> length;
   std::vector<Int_t> usedHit;
   TVector3    posOnPlane;
   TVector3    momOnPlane;
   TMatrixDSym covOnPlane(6);
-  /*
+  
   for (int i_hit = 0; i_hit < nTotalHits; i_hit++) {
     // get fitted status of fit track
     int hitId = (points.at(i_hit))->getRawMeasurement(0)->getHitId();
-    int detId = (points.at(i_hit))->getRawMeasurement(0)->getDetId();
     if(hitId<0) continue;
 
     genfit::MeasuredStateOnPlane mop;
 
-    if (i_hit==10){
+    if (i_hit==0){
       mop = fitTrack->getFittedState(i_hit,rep);
       mop.getPosMomCov(posOnPlane,momOnPlane,covOnPlane);
       fpFit  = momOnPlane.Mag();
-      fpFit *= 1e3;     
     }
   }
-  */
+  
     /*
     if (points.at(i_hit) != NULL) {
       mop = fitTrack->getFittedState(i_hit,rep);

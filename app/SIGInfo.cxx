@@ -40,7 +40,7 @@
 #include "TRandom3.h"
 #include <math.h>
 #include <sstream>
-
+#include <map>
 
 ////////////////// How to Use this Code //////////////////////////////////
 /*
@@ -504,9 +504,10 @@ public:
     if (CDCHitCont){
       for(COMET::IG4HitContainer::const_iterator hitSeg = CDCHitCont->begin(); hitSeg != CDCHitCont->end(); ++hitSeg) {
 	COMET::IG4HitSegment* tmpSeg = dynamic_cast<COMET::IG4HitSegment*>(*hitSeg);
-
 	
         if (tmpSeg){
+	  //Double_t TrLen=tmpSeg->GetTrackLength()*(1/unit::cm);	      
+	  //std::cout << TrLen << std::endl;
 	  
 	  COMET::IHandle<COMET::IG4Trajectory>  trajectory = TrajCont->GetTrajectory(tmpSeg->GetPrimaryId());
 	  std::vector <Int_t> trajContributors = tmpSeg->GetContributors();
@@ -688,7 +689,7 @@ public:
 
 	      COMET::IHandle<COMET::IG4Trajectory> tmpHandle = TrajCont->GetTrajectory(trajContributors.back());
 	      COMET::IG4Trajectory *tmpTraj = GetPointer(tmpHandle);
-	      Double_t TrLen=tmpSeg->GetTrackLength()*(1/unit::cm);
+	      Double_t TrLen=tmpSeg->GetTrackLength()*(1/unit::cm);	      
 	      Int_t pdg = tmpTraj->GetPDGEncoding();
 	      Double_t ene = tmpTraj->GetInitialMomentum()(3)*(1/unit::MeV);
 
@@ -739,16 +740,87 @@ public:
      |  CDC Detector Response        |
      |                               |
      --------------------------------*/
+    
+    // std::map <int, COMET::IG4HitSegment* > g4HitMap;
+    //int g4HitCount=0;
+    //std::map <int, std::vector<COMET::IMCHit* > > IHitVectorMap;
 
-    COMET::IChannelId tmpchanId;
+    std::map <COMET::IG4HitSegment*, std::vector<COMET::IMCHit*> > HitMap;
 
     COMET::IHandle<COMET::IHitSelection> hitHandle = event.Get<COMET::IHitSelection>("./hits/mcCDC");
     if (hitHandle){
       COMET::IHitSelection *hits = GetPointer(hitHandle);
       for (COMET::IHitSelection::const_iterator hitSeg = hits->begin(); hitSeg != hits->end(); hitSeg++){
+	/// Find SimG4 Hit contributors
+	COMET::IMCHit *mcHit = dynamic_cast<COMET::IMCHit*>(GetPointer(*hitSeg));
+	std::vector<COMET::IG4VHit*> hitContributors = mcHit->GetContributors();	
+	COMET::IG4HitSegment* g4Contributor = dynamic_cast<COMET::IG4HitSegment*>(hitContributors.at(0)); // Currently use only one contributor...
+	
+	if ( HitMap.find(g4Contributor) == HitMap.end()){      // if NOT exist in map
+	  std::vector<COMET::IMCHit*> HitVector; HitVector.push_back(mcHit);
+	  HitMap.insert(std::make_pair(g4Contributor,HitVector));
+	}
 
+	else if ( HitMap.find(g4Contributor) != HitMap.end()){ // if exist in map
+	  HitMap[g4Contributor].push_back(mcHit);
+	  //std::cout << HitMap[g4Contributor].size() << std::endl;
+	}
+      }
+    }
+
+    for (std::map< COMET::IG4HitSegment* ,std::vector<COMET::IMCHit* > >::iterator it=HitMap.begin(); it!=HitMap.end(); ++it){
+      COMET::IG4HitSegment* g4HitSeg = it->first;
+      std::vector<COMET::IMCHit*> MCHitVector = it->second; 
+      CDCCharge[nCALCDCHit]=MCHitVector.size();
+
+      for (int i_hit=0; i_hit<MCHitVector.size(); i_hit++){
+	TVectorD wireMes(7);	
+	if (i_hit==0){
+	  COMET::IGeometryId geomId = MCHitVector[i_hit]->GetGeomId();
+	  int wire = COMET::IGeomInfo::Get().CDC().GeomIdToWire(geomId);
+	  WireEnd0X[nCALCDCHit]    = COMET::IGeomInfo::Get().CDC().GetWireEnd0(wire).X();
+	  WireEnd0Y[nCALCDCHit]    = COMET::IGeomInfo::Get().CDC().GetWireEnd0(wire).Y();
+	  WireEnd0Z[nCALCDCHit]    = COMET::IGeomInfo::Get().CDC().GetWireEnd0(wire).Z();
+	  WireEnd1X[nCALCDCHit]    = COMET::IGeomInfo::Get().CDC().GetWireEnd1(wire).X();
+	  WireEnd1Y[nCALCDCHit]    = COMET::IGeomInfo::Get().CDC().GetWireEnd1(wire).Y();
+	  WireEnd1Z[nCALCDCHit]    = COMET::IGeomInfo::Get().CDC().GetWireEnd1(wire).Z();
+	  WireId[nCALCDCHit]       = wire;	  
+	  int layer = COMET::IGeomInfo::Get().CDC().GetLayer(wire);
+	  WireLayerId[nCALCDCHit]  = layer;
+	  if (WireMaxLayerId<layer) WireMaxLayerId = layer;
+
+	  TVector3 g4HitPos;
+          g4HitPos(0)=0.5 * (g4HitSeg->GetStopX()*(1/unit::cm)+g4HitSeg->GetStartX()*(1/unit::cm));
+          g4HitPos(1)=0.5 * (g4HitSeg->GetStopY()*(1/unit::cm)+g4HitSeg->GetStartY()*(1/unit::cm));
+          g4HitPos(2)=0.5 * (g4HitSeg->GetStopZ()*(1/unit::cm)+g4HitSeg->GetStartZ()*(1/unit::cm));
+
+	  TVector3 local;
+	  if (!COMET::IGeomInfo::Get().CDC().GetDistanceFromWire(g4HitPos, wire, local)) continue;
+	  CDCDriftDist[nCALCDCHit]=hypot(local.x(),local.y());
+	}	
+	else if (i_hit != 0 ){	  
+	  //CDCDriftDist[nCALCDCHit]+= MCHitVector[i_hit]->GetDriftDistance()*(1/unit::cm);
+	}
+      }
+      std::cout << CDCDriftDist[nCALCDCHit] << std::endl;
+      nCALCDCHit++;
+    }
+
+
+    /*
+    COMET::IChannelId tmpchanId;
+    COMET::IHandle<COMET::IHitSelection> hitHandle = event.Get<COMET::IHitSelection>("./hits/mcCDC");
+    if (hitHandle){
+      COMET::IHitSelection *hits = GetPointer(hitHandle);
+      for (COMET::IHitSelection::const_iterator hitSeg = hits->begin(); hitSeg != hits->end(); hitSeg++){
 	COMET::IChannelId chanId = (*hitSeg)->GetChannelId();
 	COMET::IGeometryId geomId = (*hitSeg)->GetGeomId();
+
+	/// Find SimG4 Hit contributors
+	COMET::IMCHit *mcHit = dynamic_cast<COMET::IMCHit*>(GetPointer(*hitSeg));
+	std::vector<COMET::IG4VHit*> hitContributors = mcHit->GetContributors();
+	COMET::IG4HitSegment* g4Contributor = dynamic_cast<COMET::IG4HitSegment*>(hitContributors.at(0));
+
 	int wire = COMET::IGeomInfo::Get().CDC().GeomIdToWire(geomId);
 
 	TVectorD wireMes(7);
@@ -758,20 +830,20 @@ public:
 	wireMes[3] = COMET::IGeomInfo::Get().CDC().GetWireEnd1(wire).X();
 	wireMes[4] = COMET::IGeomInfo::Get().CDC().GetWireEnd1(wire).Y();
 	wireMes[5] = COMET::IGeomInfo::Get().CDC().GetWireEnd1(wire).Z();
-	wireMes[6] = (*hitSeg)->GetDriftDistance();
+	wireMes[6] = (*hitSeg)->GetDriftDistance()*(1/unit::cm);
 
 	TVector3 wireend0(wireMes[0],wireMes[1],wireMes[2]);	
 	TVector3 wireend1(wireMes[3],wireMes[4],wireMes[5]);
 	Double_t Drfit = (*hitSeg)->GetDriftDistance();
 	
-	/*
-	if(!COMET::IGeomInfo::DetectorSolenoid().GetDetPositionInDSCoordinate(wireend0, wireend0)){
-	  continue;
-	  std::cout << "MisIdentifided wire is detected" << std::endl;}
-	if(!COMET::IGeomInfo::DetectorSolenoid().GetDetPositionInDSCoordinate(wireend1, wireend1)){
-	  continue;
-	  std::cout << "MisIdentifided wire is detected" << std::endl;}
-	*/
+	
+	//if(!COMET::IGeomInfo::DetectorSolenoid().GetDetPositionInDSCoordinate(wireend0, wireend0)){
+	//  continue;
+	//  std::cout << "MisIdentifided wire is detected" << std::endl;}
+	//if(!COMET::IGeomInfo::DetectorSolenoid().GetDetPositionInDSCoordinate(wireend1, wireend1)){
+	//  continue;
+	//  std::cout << "MisIdentifided wire is detected" << std::endl;}
+	
 
 	int layer = COMET::IGeomInfo::Get().CDC().GetLayer(wire);
 	if (WireMaxLayerId<layer){
@@ -785,7 +857,7 @@ public:
 	  std::cout << "Not SenseWire" << std::endl;
         }
 	
-	///////////////////////////CALIBRATED HIT//////////////////////////////////////                
+	///Merge ionized electrons from same hits
 
 	if (hitSeg == hits->begin()){
 	  tmpchanId = chanId;
@@ -803,11 +875,20 @@ public:
 
 	// When the next hit is at same Id                                                             
 	if (chanId == tmpchanId){
+	  CDCDriftDist[nCALCDCHit]+=wireMes[6];
 	  CDCCharge[nCALCDCHit]++;
 	}
 
 	// When the next hit generates at another Channel Id                                           
 	else if (chanId != tmpchanId){
+	  // Average drift distance
+	  CDCDriftDist[nCALCDCHit]=CDCDriftDist[nCALCDCHit]/CDCCharge[nCALCDCHit];
+
+	  // Print to test values
+	  //std::cout << WireEnd0X[nCALCDCHit] << "  " << WireEnd0Y[nCALCDCHit] << "   " <<WireEnd0X[nCALCDCHit] << "   " << WireEnd1X[nCALCDCHit] << "   " << WireEnd1Y[nCALCDCHit] << "   " << WireEnd1Z[nCALCDCHit] << "   " << CDCDriftDist[nCALCDCHit] <<  std::endl;
+
+	  
+	  // Change channel Id
 	  tmpchanId = chanId;
 	  nCALCDCHit++;
 	  CDCCharge[nCALCDCHit]++;
@@ -823,7 +904,7 @@ public:
 	}
       }
     }
-
+*/
 
 
     /*
