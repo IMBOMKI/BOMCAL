@@ -34,7 +34,7 @@ public:
     fFileMode("recreate"), 
     fOutputDir("../anal"),
 
-    fEventsNumForAnaly(1000),
+    fEventsNumForAnaly(10000),
     fCoincidenceCount(0),
     fSingleTurnCount(0),
     fSaveHoughTransform(0)
