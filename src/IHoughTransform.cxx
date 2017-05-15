@@ -76,6 +76,7 @@ IHoughTransform::IHoughTransform(const char* name = "IHoughTransform", const cha
    fnRecoHit_even(0),
    fnRecoHit_odd(0),
    fRecoCL3(0),
+   fRecoCL5(0),
    fReco2DCharge(0),
 
    /*** Geometry Variables ***/
@@ -508,11 +509,13 @@ void IHoughTransform::RecognizeHits(){
 	domain1_layer.push_back(fRecoWireLayerId[i_reco]);
 	domain1_wireend0.push_back(wireend0);
 	domain1_wireend1.push_back(wireend1);
+	fRecoDomain[i_reco]=1;
       }
       else if (cross>0){
 	domain2_layer.push_back(fRecoWireLayerId[i_reco]);
 	domain2_wireend0.push_back(wireend0);
 	domain2_wireend1.push_back(wireend1);
+	fRecoDomain[i_reco]=2;
       }
     }
     
@@ -524,18 +527,28 @@ void IHoughTransform::RecognizeHits(){
 	domain1_layer.push_back(fRecoWireLayerId[i_reco]);
 	domain1_wireend0.push_back(wireend0);
 	domain1_wireend1.push_back(wireend1);
+	fRecoDomain[i_reco]=1;
       }
       else if (cross>0){
 	domain2_layer.push_back(fRecoWireLayerId[i_reco]);
 	domain2_wireend0.push_back(wireend0);
 	domain2_wireend1.push_back(wireend1);
+	fRecoDomain[i_reco]=2;
       }
     }
   }
   
+  fRecoCL3=0;
   if (ifInsideVec(0,domain1_layer)==1 && ifInsideVec(1,domain1_layer)==1 && ifInsideVec(2,domain1_layer)==1){
     if (ifInsideVec(0,domain2_layer)==1 && ifInsideVec(1,domain2_layer)==1 && ifInsideVec(2,domain2_layer)==1){
       fRecoCL3=1;
+    }
+  }
+
+  fRecoCL5=0;
+  if (ifInsideVec(0,domain1_layer)==1 && ifInsideVec(1,domain1_layer)==1 && ifInsideVec(2,domain1_layer)==1 && ifInsideVec(3,domain1_layer)==1 && ifInsideVec(4,domain1_layer)==1){
+    if (ifInsideVec(0,domain2_layer)==1 && ifInsideVec(1,domain2_layer)==1 && ifInsideVec(2,domain2_layer)==1 && ifInsideVec(3,domain2_layer)==1 && ifInsideVec(4,domain2_layer)==1){
+      fRecoCL5=1;
     }
   }
 
@@ -870,6 +883,14 @@ std::vector<double> IHoughTransform::GetRecoDriftDist(){
     driftDist.push_back(fRecoDriftDist[i]);
   }
   return driftDist;
+}
+
+std::vector<int> IHoughTransform::GetRecoDomain(){
+  std::vector<int> domain;
+  for (int i=0; i<fnRecoHit; i++){
+    domain.push_back(fRecoDomain[i]);
+  }
+  return domain;
 }
 
 int IHoughTransform::Finish(){

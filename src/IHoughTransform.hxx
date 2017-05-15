@@ -130,7 +130,9 @@ private:
   int    fRecoWireId[10000];
   int    fReco2DCharge;
   bool   fRecoCL3;
+  bool   fRecoCL5;
   int    fRecoMaxWireLayerId;
+  int    fRecoDomain[10000];
 
 
 
@@ -163,9 +165,11 @@ public:
 
   std::vector<int> GetRecoWireId();
   std::vector <double> GetRecoDriftDist();
+  std::vector<int> GetRecoDomain();
 
   int  GetTurnNumber() { return ITracking::GetTurnNumber(); }
   bool GetCL3()            {return fRecoCL3;}
+  bool GetCL5()            {return fRecoCL5;}
   int  GetMaxWireLayerId() {return fRecoMaxWireLayerId;}
   int  Get2DCharge()       {return fReco2DCharge;}
   int  GetNumberOfRecognizedHits()   {return fnRecoHit; }

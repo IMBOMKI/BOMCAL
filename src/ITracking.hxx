@@ -60,6 +60,7 @@ protected:
   double fWireEnd1Z[10000];
   int    fWireLayerId[10000];
   int    fWireId[10000];
+  int    fDomain[10000];
   int    fWireMaxLayerId;
   int    fTurnId[10000];
   int    fTurnNumber;
