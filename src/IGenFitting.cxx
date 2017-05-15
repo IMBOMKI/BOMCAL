@@ -95,8 +95,8 @@ IGenFitting::IGenFitting(const char* name, const char* title)
   ,fFieldMap("/home/bomki/ICEDUST/local_storage/fieldmaps/150630_defaultFieldmap/load_fieldmaps.mac")
   ,fUseMCTruth(false)
   ,fSmearing(true)
-   //,fSigmaD(0.02)
-  ,fSigmaD(0.01)
+  ,fSigmaD(0.02)
+   //,fSigmaD(0.005)
   ,fSigmaWP(0.001)
   ,fSaveHistogram(true)
 {
@@ -246,13 +246,13 @@ int IGenFitting::DoFit(){
       TMatrixDSym wireMatrix(7); /// Uncertainties for wireMes values
       
       //std::cout << "Hit Info " << i_hit << "  " << fWireEnd0X[i_hit] << "  " << fWireEnd0Y[i_hit] << "  " << fWireEnd0Z[i_hit] << "  " << fDriftDist[i_hit] <<  std::endl;
+
       wireMes[0] = fWireEnd0X[i_hit];
       wireMes[1] = fWireEnd0Y[i_hit];
       wireMes[2] = fWireEnd0Z[i_hit];
       wireMes[3] = fWireEnd1X[i_hit];
       wireMes[4] = fWireEnd1Y[i_hit];
       wireMes[5] = fWireEnd1Z[i_hit];
-      //wireMes[6] = 0.1;
       wireMes[6] = fDriftDist[i_hit];      
       trackPoints.push_back(new genfit::TrackPoint());
 
@@ -362,8 +362,6 @@ int IGenFitting::DoFit(){
   fChi2 = fitTrack->getFitStatus(rep)->getChi2();
   fNdf = fitTrack->getFitStatus(rep)->getNdf();  
   fChi2Ndf = fChi2/fNdf;
-  std::cout << "Fitted Momentum is: " << fpFit << std::endl;
-  std::cout << std::endl;
 
   delete kalman;
   //delete fitTrack;
@@ -417,6 +415,8 @@ int IGenFitting::DoFit(){
   }
     */
 
+  std::cout << "Fitted Momentum is: " << fpFit << std::endl;
+  std::cout << std::endl;
 
   return 1;
 }

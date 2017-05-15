@@ -37,6 +37,7 @@ public:
     fEventsNumForAnaly(10000),
     fCoincidenceCount(0),
     fSingleTurnCount(0),
+    fMultiTurnCount(0),
     fSaveHoughTransform(0)
   {}
   virtual ~TMyEventLoop() {}
@@ -165,6 +166,9 @@ public:
 
 	fTrdata->Fill();	
       }   
+      else if (RecoMaxWireLayerId>=4 && Reco2DCharge==-1 && RecoCL3==1 && nRecoHit>30 && MCTurnNumber>1){
+	fMultiTurnCount++;
+      }
     }
     
     delete MCTrigger;
@@ -179,8 +183,8 @@ public:
   void Finalize(COMET::ICOMETOutput* output) {
     std::cout << "Finalize" << std::endl;
     std::cout << "Coincidence Count             : "  << fCoincidenceCount << std::endl;
-    std::cout << "SingleTurn Count after Trigger: "  << fSingleTurnCount << std::endl;
-
+    std::cout << "SingleTurn Count after Trigger & Track Cut: "  << fSingleTurnCount << std::endl;
+    std::cout << "Multi-Turn Count after Trigger & Track Cut: "  << fMultiTurnCount << std::endl;
     fOutputFile->cd();    
     fTrdata->Write();
     fOutputFile->Close();
@@ -203,6 +207,7 @@ private:
   /*** Trigger ***/
   int fCoincidenceCount;
   int fSingleTurnCount;
+  int fMultiTurnCount;
 
   /*** HoughTransform ***/
   bool fSaveHoughTransform;

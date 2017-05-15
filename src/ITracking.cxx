@@ -190,10 +190,9 @@ void ITracking::LoadMCHits(COMET::IHandle<COMET::IHitSelection> hitHandle, COMET
     }
   }
   
-  //  for (std::map< COMET::IG4HitSegment* ,std::vector<COMET::IMCHit* > >::iterator it=HitMap.begin(); it!=HitMap.end(); ++it){
+  int idOverlap=0;
+
   for (int i_hit=0 ; i_hit<g4HitOrder.size(); i_hit++){
-    //COMET::IG4HitSegment* g4HitSeg = it->first;
-    //std::vector<COMET::IMCHit*> MCHitVector = it->second; 
     
     COMET::IG4HitSegment* g4HitSeg = g4HitOrder.at(i_hit);
     std::vector<COMET::IMCHit*> MCHitVector = HitMap[g4HitSeg];
@@ -203,7 +202,10 @@ void ITracking::LoadMCHits(COMET::IHandle<COMET::IHitSelection> hitHandle, COMET
     COMET::IGeometryId geomId = MCHitVector[0]->GetGeomId();
     int wire = COMET::IGeomInfo::Get().CDC().GeomIdToWire(geomId);
     
-    if (std::find(wireIdList.begin(), wireIdList.end(), wire) != wireIdList.end() ) continue;
+    if (std::find(wireIdList.begin(), wireIdList.end(), wire) != wireIdList.end() ) {
+      idOverlap++;
+      continue;      
+    }
     wireIdList.push_back(wire);
 
     fCDCCharge[fnCALCDCHit]    = MCHitVector.size();    
@@ -215,7 +217,6 @@ void ITracking::LoadMCHits(COMET::IHandle<COMET::IHitSelection> hitHandle, COMET
     fWireEnd1Z[fnCALCDCHit]    = COMET::IGeomInfo::Get().CDC().GetWireEnd1(wire).Z();
     fWireId[fnCALCDCHit]       = wire;	  
     int layer = COMET::IGeomInfo::Get().CDC().GetLayer(wire);
-    //std::cout << layer << std::endl;
 
     fWireLayerId[fnCALCDCHit]  = layer;
     if (fWireMaxLayerId<layer) fWireMaxLayerId = layer;
@@ -232,6 +233,8 @@ void ITracking::LoadMCHits(COMET::IHandle<COMET::IHitSelection> hitHandle, COMET
     //std::cout << fDriftDist[fnCALCDCHit] << std::endl;
     fnCALCDCHit++;
   }
+
+  std::cout << "id Overlap: " << idOverlap << std::endl;
   
   /*
   

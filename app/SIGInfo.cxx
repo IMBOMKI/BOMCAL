@@ -15,6 +15,7 @@
 #include <ICTHGeomId.hxx>
 #include <ICTHChannelId.hxx>
 #include <IDetectorSolenoidGeom.hxx>
+#include <ICDCmcDigit.hxx>
 
 #include <memory>
 #include <vector>
@@ -740,10 +741,8 @@ public:
      |  CDC Detector Response        |
      |                               |
      --------------------------------*/
-    
-    // std::map <int, COMET::IG4HitSegment* > g4HitMap;
-    //int g4HitCount=0;
-    //std::map <int, std::vector<COMET::IMCHit* > > IHitVectorMap;
+
+    // IMCHit Container
 
     std::map <COMET::IG4HitSegment*, std::vector<COMET::IMCHit*> > HitMap;
 
@@ -802,7 +801,7 @@ public:
 	  //CDCDriftDist[nCALCDCHit]+= MCHitVector[i_hit]->GetDriftDistance()*(1/unit::cm);
 	}
       }
-      std::cout << CDCDriftDist[nCALCDCHit] << std::endl;
+      //std::cout << CDCDriftDist[nCALCDCHit] << std::endl;
       nCALCDCHit++;
     }
 
@@ -906,12 +905,21 @@ public:
     }
 */
 
+    // IDigit Container
 
-    /*
-    if (Pairep_TurnNumber>=2){
-      std::cout << eventId << "   " << Pairep_TurnNumber << std::endl;
+    COMET::IHandle<COMET::IDigitContainer> digitContainer = event.Get<COMET::IDigitContainer>("./digits/CDC");
+    if (digitContainer){
+      for (COMET::IDigitContainer::const_iterator digitIt = digitContainer->begin(); digitIt != digitContainer->end(); digitIt++){
+	COMET::ICDCmcDigit* CDCmcDigit = dynamic_cast<COMET::ICDCmcDigit*>(*digitIt);
+	COMET::IChannelId chanId = CDCmcDigit->GetChannelId();
+	std::vector<short> adcs  = CDCmcDigit->GetADCs();
+	for (int i=0; i<adcs.size(); i++){
+	  std::cout << adcs.at(i) << "   ";
+	}
+	std::cout << std::endl;
+      }
     }
-    */
+
     trdata->Fill();
     return true;
   }
