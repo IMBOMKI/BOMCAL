@@ -62,6 +62,7 @@ public:
 
   void LoadHitsAfterHT(COMET::IHandle<COMET::IHitSelection> hitHandle, IHoughTransform* hough);
   void AddRandomHitPairs(int n, int domain);
+  void AddSideHitPairs(int n, int domain);
   void DrawHitsOnFictitiousPlane(TCanvas* canvas);
 
 private:

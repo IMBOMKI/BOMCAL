@@ -64,9 +64,11 @@ public:
   double GetChi2Ndf() { return fChi2Ndf; }
   double GetInitialMom() { return sqrt(pow(fGenTrPx,2)+pow(fGenTrPy,2)+pow(fGenTrPz,2)); }
   double GetCDCEntranceMom() { return sqrt(pow(fCDCEnterPx,2)+pow(fCDCEnterPy,2)+pow(fCDCEnterPz,2)); }
+  
+
 
 private:
-
+  TTree   *fTree;
   Bool_t fUseBetheBloch; /// flag to turn on/off the BetheBloch  
   Bool_t fUseBrems;      /// flag to turn on/off the Brems  
   std::string fMethod; /// fitting method  
@@ -89,15 +91,13 @@ private:
   Bool_t   fSaveHistogram; /// Flage to save Hitogram
 
   genfit::Track* fitTrack;
-  TGeoManager* fGeoManager;
+  TGeoManager*   fGeoManager;
   COMET::IFieldManager* fFieldManager;
   double fpFit;
   double fChi2;
   int    fNdf;
   double fChi2Ndf;
-  
-  TTree   *fTree;
-  //Double_t fFittedMom;
-  //TH1D     fFittedMomHist;
+
+  TVector3 fEntrancePosFit;
 };
 #endif

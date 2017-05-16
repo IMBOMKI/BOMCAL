@@ -134,6 +134,8 @@ private:
   int    fRecoMaxWireLayerId;
   int    fRecoDomain[10000];
 
+  // Temporal feature
+  bool   fRecoSideHit[10000];
 
 
 public:
@@ -166,6 +168,7 @@ public:
   std::vector<int> GetRecoWireId();
   std::vector <double> GetRecoDriftDist();
   std::vector<int> GetRecoDomain();
+  std::vector<bool> GetRecoSideHit();
 
   int  GetTurnNumber() { return ITracking::GetTurnNumber(); }
   bool GetCL3()            {return fRecoCL3;}
@@ -173,7 +176,6 @@ public:
   int  GetMaxWireLayerId() {return fRecoMaxWireLayerId;}
   int  Get2DCharge()       {return fReco2DCharge;}
   int  GetNumberOfRecognizedHits()   {return fnRecoHit; }
-
 
   void DrawEvent(TCanvas* canvas);
   void PrintMCStatus();

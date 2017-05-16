@@ -55,6 +55,9 @@
 
 /// For translating COMET Field into genfit::AbsBField
 
+//TVector3 GetPOCAofTwoWires(TVector3 wireEnd0_lo, TVector3 wireEnd1_lo, TVector3 wireEnd0_up, TVector3 wireEnd1_up);
+
+//TVector3 GetVectorCrossingCenter(TVector3 wireEnd0_lo, TVector3 wireEnd1_lo, TVector3 wireEnd0_up, TVector3 wireEnd1_up, TVector3 POCA);
 
 class GFGeoField : public genfit::AbsBField{
 public:
@@ -141,10 +144,12 @@ int IGenFitting::EndOfEvent()
 void IGenFitting::LoadHitsAfterHT(COMET::IHandle<COMET::IHitSelection> hitHandle, IHoughTransform* hough){  
   std::vector<int> wireId      = hough->GetRecoWireId();
   std::vector<double> driftDist= hough->GetRecoDriftDist();
+  std::vector<int> domain       = hough->GetRecoDomain();
 
   fnCALCDCHit=wireId.size();
   assert(fnCALCDCHit==hough->GetNumberOfRecognizedHits());
   assert(wireId.size() == driftDist.size());
+  assert(wireId.size() == domain.size());
 
   for (int i=0; i<fnCALCDCHit; i++){
     int wire = wireId.at(i);
@@ -156,6 +161,7 @@ void IGenFitting::LoadHitsAfterHT(COMET::IHandle<COMET::IHitSelection> hitHandle
     fWireEnd1Y[i] = COMET::IGeomInfo::Get().CDC().GetWireEnd1(wire).Y();
     fWireEnd1Z[i] = COMET::IGeomInfo::Get().CDC().GetWireEnd1(wire).Z();
     fDriftDist[i] = driftDist.at(i);
+    fDomain[i]      = domain.at(i);
     //std::cout << i << "   " << fWireEnd0X[i] << "   " << fWireEnd0Y[i] << "   " << fWireEnd0Z[i] << std::endl;
   }
 }  
@@ -421,3 +427,38 @@ int IGenFitting::DoFit(){
   return 1;
 }
 
+/*
+TVector3 GetPOCAofTwoWires(TVector3 wireEnd0_lo, TVector3 wireEnd1_lo, TVector3 wireEnd0_up, TVector3 wireEnd1_up){
+  TVector3 u = wireEnd1_lo-wireEnd0_lo;
+  TVector3 v = wireEnd1_up-wireEnd0_up;
+  TVector3 w = wireEnd0_lo-wireEnd0_up;
+  double a,b,c,d,e,s,t;
+  a = u * u; 
+  b = u * v;
+  c = v * v;
+  d = u * w;
+  e = v * w;
+  
+  s = (b*e-c*d)/(a*c-b*b);
+  t = (a*e-b*d)/(a*c-b*b);
+
+  TVector3 pC=wireEnd0_lo + s * u;
+  TVector3 qC=wireEnd0_up + t * v;
+  
+  return (pC+qC)*0.5;
+}
+
+TVector3 GetVectorCrossingCenter(TVector3 wireEnd0_lo, TVector3 wireEnd1_lo, TVector3 wireEnd0_up, TVector3 wireEnd1_up, TVector3 POCA){
+  TVector3 u = wireEnd1_lo-wireEnd0_lo;
+  TVector3 v = wireEnd1_up-wireEnd0_up;
+  
+  double u_t   = (POCA(0)-wireEnd0_lo(0))/(wireEnd1_lo(0)-wireEnd0_lo(0));
+  double v_t   = (POCA(0)-wireEnd0_up(0))/(wireEnd1_up(0)-wireEnd0_up(0));
+
+  TVector3 c1 = wireEnd0_lo + u_t*u;
+  TVector3 c2 = wireEnd0_up + v_t*v;
+
+  //std::cout << c1(0)-c2(0) << "  " << c1(1)-c2(1) << "  " << c1(2)-c2(2) << std::endl;
+  return c2-c1;
+}
+*/

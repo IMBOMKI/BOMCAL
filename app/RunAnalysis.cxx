@@ -34,11 +34,11 @@ public:
     fFileMode("recreate"), 
     fOutputDir("../anal"),
 
-    fEventsNumForAnaly(10000),
+    fEventsNumForAnaly(100),
     fCoincidenceCount(0),
     fSingleTurnCount(0),
     fMultiTurnCount(0),
-    fSaveHoughTransform(0)
+    fSaveHoughTransform(1)
   {}
   virtual ~TMyEventLoop() {}
  

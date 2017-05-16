@@ -156,8 +156,9 @@ public:
 
 	// Analysis With Fictitious Plane
 	FictitiousPlane->LoadHitsAfterHT(CDCHits_DetResp, HoughTransform);
-	FictitiousPlane->AddRandomHitPairs(4,1);
-	
+	//FictitiousPlane->AddRandomHitPairs(4,1);
+	FictitiousPlane->AddSideHitPairs(4,1);	
+
       	//fTrdata->Fill();	
 
 	if (fDrawFictitiousPlane){

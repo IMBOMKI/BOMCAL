@@ -4,6 +4,7 @@
 #include <vector>
 #include <iostream>
 #include <algorithm>
+#include <map>
 
 #include <IOADatabase.hxx>
 #include <IReconBase.hxx>
@@ -61,6 +62,7 @@ bool ifInsideArray(Int_t wireid, Int_t *reco_ids, Int_t arr_size);
 Int_t findMaxPoint(std::vector<Int_t> vec);
 std::pair<Double_t, Double_t> getRotatedXY(std::pair<Double_t, Double_t> xy, Double_t deg);
 Bool_t ifCircleIsPassing(Double_t rad, Double_t cX, Double_t cY, std::pair<Double_t, Double_t> ref1, std::pair<Double_t, Double_t> ref2);
+double getAngle(double x, double y, double cX, double cY);
 
 IHoughTransform::IHoughTransform(const char* name = "IHoughTransform", const char* title="houghtransform")
   :ITracking(name,title),
@@ -94,6 +96,7 @@ IHoughTransform::IHoughTransform(const char* name = "IHoughTransform", const cha
 { 
   fNumOfWiresPerLayer = new int[18]{198,204,210,216,222,228,234,240,246,252,258,264,270,276,282,288,294,300};
   fLayerRadius        = new double[18]{53.0, 54.6, 56.2, 57.8, 59.4, 61.0, 62.6, 64.2, 65.8, 67.4, 69.0, 70.6, 72.2, 73.8, 75.4, 77.0, 78.6, 80.2};
+  memset(fRecoSideHit,0,sizeof(fRecoSideHit));
 }
 
 
@@ -552,6 +555,54 @@ void IHoughTransform::RecognizeHits(){
     }
   }
 
+  /*------------------------------
+    |                            |
+    |    Configure Side Hits     |
+    |                            |
+    -----------------------------*/
+
+  std::map<int,int> Layer;
+  std::map<int,int> WireId;
+  std::map<int,int> Domain;
+  std::map<int,double> Angle;
+
+  for (Int_t i_reco=0; i_reco<fnRecoHit; i_reco++){
+    Layer.insert(std::make_pair(i_reco,fRecoWireLayerId[i_reco]));
+    Domain.insert(std::make_pair(i_reco,fRecoDomain[i_reco]));
+    WireId.insert(std::make_pair(i_reco,fRecoWireId[i_reco]));
+    if ((fRecoWireLayerId[i_reco]+1)%2 == 0){      //even	
+      Angle.insert(std::make_pair(i_reco,getAngle(fRecoWireEnd0X[i_reco],fRecoWireEnd0Y[i_reco],fAbsCx_even, fAbsCy_even)) );
+    }
+    else if ((fRecoWireLayerId[i_reco]+1)%2 == 1){ //odd	
+      Angle.insert(std::make_pair(i_reco,getAngle(fRecoWireEnd0X[i_reco],fRecoWireEnd0Y[i_reco],fAbsCx_odd, fAbsCy_odd)) );
+    }
+  }
+
+  std::vector<int> SideWireId;
+  // Domain 1
+  for (Int_t i_dom=1  ; i_dom<=2; i_dom++){  
+    for (Int_t i_layer=0; i_layer<=fRecoMaxWireLayerId; i_layer++){
+      Double_t angle =0;
+      Int_t    wireId=-1;
+      for (Int_t i=0; i<Layer.size(); i++){
+	if (Layer.at(i)==i_layer && Domain.at(i)==i_dom){
+	  if (Angle.at(i)>angle){
+	    angle  = Angle.at(i);	  
+	    wireId = WireId.at(i);
+	  }
+	}
+      }    
+      if (wireId>0) SideWireId.push_back(wireId);
+    }
+  }
+
+  for (int i_reco=0; i_reco<fnRecoHit; i_reco++){
+    int wireId = fRecoWireId[i_reco];
+    if (std::find(SideWireId.begin(), SideWireId.end(), wireId) != SideWireId.end()){
+      fRecoSideHit[i_reco]=1;
+    }
+  }
+
   /*--------------------------------
     |                              |
     |    Charge Identification     |
@@ -867,6 +918,24 @@ void IHoughTransform::DrawEvent(TCanvas* canvas){
   grRecoOddhits->SetMarkerColor(46); // Reco_odd - right red
   grRecoOddhits->Draw("P");      
 
+  // Side Hits
+  double fSideWireEnd0X[1000];
+  double fSideWireEnd0Y[1000];  
+  int    fnSideHit=0;
+  for (int i_reco=0; i_reco<fnRecoHit; i_reco++){
+    if (fRecoSideHit[i_reco]==1){
+      fSideWireEnd0X[fnSideHit]=fRecoWireEnd0X[i_reco];
+      fSideWireEnd0Y[fnSideHit]=fRecoWireEnd0Y[i_reco];
+      fnSideHit++;
+    }
+  }
+
+  TGraph *grSideHits = new TGraph(fnSideHit, fSideWireEnd0X, fSideWireEnd0Y);
+  grSideHits->SetTitle("SideHits");
+  grSideHits->SetMarkerStyle(20);
+  grSideHits->SetMarkerSize(1);
+  grSideHits->SetMarkerColor(5); // Side Hit - Yellow 
+  grSideHits->Draw("P");        
 }
 
 std::vector<int> IHoughTransform::GetRecoWireId(){
@@ -891,6 +960,14 @@ std::vector<int> IHoughTransform::GetRecoDomain(){
     domain.push_back(fRecoDomain[i]);
   }
   return domain;
+}
+
+std::vector<bool> IHoughTransform::GetRecoSideHit(){
+  std::vector<bool> side;
+  for (int i=0; i<fnRecoHit; i++){
+    side.push_back(fRecoSideHit[i]);
+  }
+  return side;
 }
 
 int IHoughTransform::Finish(){
@@ -1002,3 +1079,11 @@ Bool_t ifCircleIsPassing(Double_t rad, Double_t cX, Double_t cY, std::pair<Doubl
   else if (dist1>pow(rad,2) && dist2<pow(rad,2)) return 1;
   return 0;
 };
+
+double getAngle(double x, double y, double cX, double cY){
+  double cross = TMath::Abs(x*cY - y*cX);
+  double v1Mag = TMath::Sqrt(x*x+y*y);
+  double v2Mag = TMath::Sqrt(cX*cX+cY*cY);
+  double angle = TMath::ASin(cross/(v1Mag*v2Mag));
+  return angle;
+}

@@ -54,8 +54,24 @@ void IFictitiousPlane::LoadHitsAfterHT(COMET::IHandle<COMET::IHitSelection> hitH
   std::vector<int> wireId       = hough->GetRecoWireId();
   std::vector<double> driftDist = hough->GetRecoDriftDist();
   std::vector<int> domain       = hough->GetRecoDomain();
+  std::vector<bool> side        = hough->GetRecoSideHit();
 
   fnCALCDCHit=wireId.size();
+
+  // Clear the arrays
+  memset (fWireId,-1,sizeof(fWireId));
+  memset (fWireLayerId,-1,sizeof(fWireLayerId));
+  memset (fWireEnd0X,-1,sizeof(fWireEnd0X));
+  memset (fWireEnd0Y,-1,sizeof(fWireEnd0Y));
+  memset (fWireEnd0Z,-1,sizeof(fWireEnd0Z));
+  memset (fWireEnd1X,-1,sizeof(fWireEnd1X));
+  memset (fWireEnd1Y,-1,sizeof(fWireEnd1Y));
+  memset (fWireEnd1Z,-1,sizeof(fWireEnd1Z));
+  memset (fDriftDist,-1,sizeof(fDriftDist));
+  memset (fDomain,-1,sizeof(fDomain));
+  memset (fSide,-1,sizeof(fSide));
+
+
   assert(fnCALCDCHit==hough->GetNumberOfRecognizedHits());
   assert(wireId.size() == driftDist.size());
   assert(wireId.size() == domain.size());
@@ -72,6 +88,7 @@ void IFictitiousPlane::LoadHitsAfterHT(COMET::IHandle<COMET::IHitSelection> hitH
     fWireEnd1Z[i]   = COMET::IGeomInfo::Get().CDC().GetWireEnd1(wire).Z();
     fDriftDist[i]   = driftDist.at(i);
     fDomain[i]      = domain.at(i);
+    fSide[i]        = side.at(i);
     //std::cout << i << "   " << fWireEnd0X[i] << "   " << fWireEnd0Y[i] << "   " << fWireEnd0Z[i] << "   " << fDomain[i] << std::endl;
   }
 }  
@@ -86,7 +103,7 @@ void IFictitiousPlane::AddRandomHitPairs(int n, int domain){
     std::vector<int> lowerIndicies;
     std::vector<int> upperIndicies;
     for (int i_hit=0; i_hit<fnCALCDCHit; i_hit++){
-      if (fWireLayerId[i_hit]==i        && fDomain[i_hit]==domain) lowerIndicies.push_back(i_hit);
+      if      (fWireLayerId[i_hit]==i   && fDomain[i_hit]==domain) lowerIndicies.push_back(i_hit);
       else if (fWireLayerId[i_hit]==i+1 && fDomain[i_hit]==domain) upperIndicies.push_back(i_hit);
     }
     //if (lowerIndicies.empty() || upperIndicies.empty()) continue;
@@ -121,7 +138,60 @@ void IFictitiousPlane::AddRandomHitPairs(int n, int domain){
     }
 
     TVector3 POCA = GetPOCAofTwoWires(hit_lo.wireEnd0, hit_lo.wireEnd1, hit_up.wireEnd0, hit_up.wireEnd1);
-    TVector3 cVec = GetVectorCrossingCenter(POCA,hit_lo.wireEnd0, hit_lo.wireEnd1, hit_up.wireEnd0, hit_up.wireEnd1);
+    TVector3 cVec = GetVectorCrossingCenter(hit_lo.wireEnd0, hit_lo.wireEnd1, hit_up.wireEnd0, hit_up.wireEnd1,POCA);
+
+    hitPair.h1 = hit_lo;
+    hitPair.h2 = hit_up;
+    hitPair.cV = cVec;
+
+    fHitPairs.push_back(hitPair);
+    //if (domain==2) fHitPairsDomain2.push_back(hitPair);
+  }
+}
+
+void IFictitiousPlane::AddSideHitPairs(int n, int domain){
+  assert(n<=4);
+  for (int i=0; i<n; i++){ 
+   
+    struct SingleHit hit_lo, hit_up;
+    struct HitPair hitPair;
+
+    int i_lo;
+    int i_up;
+    for (int i_hit=0; i_hit<fnCALCDCHit; i_hit++){
+      if      (fWireLayerId[i_hit]==i   && fDomain[i_hit]==domain && fSide[i_hit]==1) i_lo=i_hit;
+      else if (fWireLayerId[i_hit]==i+1 && fDomain[i_hit]==domain && fSide[i_hit]==1) i_up=i_hit;
+    }
+    //if (lowerIndicies.empty() || upperIndicies.empty()) continue;
+
+    TVector3 wireEnd0_lo = TVector3(fWireEnd0X[i_lo], fWireEnd0Y[i_lo], fWireEnd0Z[i_lo]);
+    TVector3 wireEnd1_lo = TVector3(fWireEnd1X[i_lo], fWireEnd1Y[i_lo], fWireEnd1Z[i_lo]);
+
+    TVector3 wireEnd0_up = TVector3(fWireEnd0X[i_up], fWireEnd0Y[i_up], fWireEnd0Z[i_up]);
+    TVector3 wireEnd1_up = TVector3(fWireEnd1X[i_up], fWireEnd1Y[i_up], fWireEnd1Z[i_up]);
+
+    hit_lo.wireEnd0  = wireEnd0_lo;
+    hit_lo.wireEnd1  = wireEnd1_lo;
+    hit_lo.driftDist = fDriftDist[i_lo];
+    hit_lo.wireId    = fWireId[i_lo];
+    hit_lo.layerId   = fWireLayerId[i_lo];
+    hit_lo.domain    = fDomain[i_lo];
+
+    hit_up.wireEnd0  = wireEnd0_up;
+    hit_up.wireEnd1  = wireEnd1_up;
+    hit_up.driftDist = fDriftDist[i_up];
+    hit_up.wireId    = fWireId[i_up];
+    hit_up.layerId   = fWireLayerId[i_up];
+    hit_up.domain    = fDomain[i_up];
+
+    // If fHitPairs is not empty, use the previous h2 as h1
+    if (i!=0){ 
+      hit_lo = (fHitPairs.at(i-1)).h2;
+      //if (domain==2) hit_lo = (fHitPairsDomain2.at(i-1)).h2;
+    }
+
+    TVector3 POCA = GetPOCAofTwoWires(hit_lo.wireEnd0, hit_lo.wireEnd1, hit_up.wireEnd0, hit_up.wireEnd1);
+    TVector3 cVec = GetVectorCrossingCenter(hit_lo.wireEnd0, hit_lo.wireEnd1, hit_up.wireEnd0, hit_up.wireEnd1,POCA);
 
     hitPair.h1 = hit_lo;
     hitPair.h2 = hit_up;
@@ -138,12 +208,12 @@ void IFictitiousPlane::DrawHitsOnFictitiousPlane(TCanvas* canvas){
   TVector2 ref;
   ref = TVector2(0.,0.);
   for (int i=0; i<fHitPairs.size() ; i++){
-    //if (i==0){
+    if (i==0){
       double d_lo = ((fHitPairs.at(i)).h1).driftDist;
       TEllipse *HitCircle_lo = new TEllipse(ref.X(),ref.Y(), d_lo,d_lo);
       std::cout << ref.X() << "  " << ref.Y() << "  " << d_lo << std::endl;
       HitCircle_lo->Draw();
-      //}
+    }
     TVector3 cVec = fHitPairs.at(i).cV;
     ref = TVector2(ref.X()+cVec(1), ref.Y()+cVec(2));
     double d_up = ((fHitPairs.at(i)).h2).driftDist;
@@ -169,6 +239,11 @@ TVector3 GetPOCAofTwoWires(TVector3 wireEnd0_lo, TVector3 wireEnd1_lo, TVector3 
 
   TVector3 pC=wireEnd0_lo + s * u;
   TVector3 qC=wireEnd0_up + t * v;
+
+  // DOCA 
+  std::cout << "DOCA: " << (w+s*u-t*v).Mag() << std::endl;
+  std::cout << "pC: " << pC(0) << "  " << pC(1) << "  " << pC(2) << std::endl;
+  std::cout << "qC: " << qC(0) << "  " << qC(1) << "  " << qC(2) << std::endl;
   
   return (pC+qC)*0.5;
 }
@@ -183,6 +258,6 @@ TVector3 GetVectorCrossingCenter(TVector3 wireEnd0_lo, TVector3 wireEnd1_lo, TVe
   TVector3 c1 = wireEnd0_lo + u_t*u;
   TVector3 c2 = wireEnd0_up + v_t*v;
 
-  //std::cout << c1(0)-c2(0) << "  " << c1(1)-c2(1) << "  " << c1(2)-c2(2) << std::endl;
+  std::cout << "CVector: " << c1(0)-c2(0) << "  " << c1(1)-c2(1) << "  " << c1(2)-c2(2) << std::endl;
   return c2-c1;
 }
