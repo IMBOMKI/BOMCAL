@@ -117,7 +117,6 @@ private:
   double fRecoWireEnd0X_odd[10000];
   double fRecoWireEnd0Y_odd[10000];
 
-
   int    fnRecoHit;
   double fRecoWireEnd0X[10000];
   double fRecoWireEnd0Y[10000];
@@ -132,11 +131,12 @@ private:
   bool   fRecoCL3;
   bool   fRecoCL5;
   int    fRecoMaxWireLayerId;
-  int    fRecoDomain[10000];
 
   // Temporal feature
+  int    fRecoDomain[10000];
   bool   fRecoSideHit[10000];
-
+  bool   fRecoOuterHit[10000];
+  bool   fRecoInnerHit[10000];
 
 public:
   IHoughTransform(const char*name, const char* title);
@@ -169,6 +169,8 @@ public:
   std::vector <double> GetRecoDriftDist();
   std::vector<int> GetRecoDomain();
   std::vector<bool> GetRecoSideHit();
+  std::vector<bool> GetRecoOuterHit();
+  std::vector<bool> GetRecoInnerHit();
 
   int  GetTurnNumber() { return ITracking::GetTurnNumber(); }
   bool GetCL3()            {return fRecoCL3;}

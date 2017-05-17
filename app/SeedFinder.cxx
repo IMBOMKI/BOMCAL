@@ -2,7 +2,7 @@
 #include <ITracking.hxx>
 #include <IHoughTransform.hxx>
 #include <IGenFitting.hxx>
-#include <IFictitiousPlane.hxx>
+#include <IHelixTracker.hxx>
 
 #include <cometEventLoop.hxx>
 #include <IMCHit.hxx>
@@ -35,12 +35,12 @@ public:
     fFileMode("recreate"), 
     fOutputDir("../anal"),
 
-    fEventsNumForAnaly(100),
+    fEventsNumForAnaly(150),
     fCoincidenceCount(0),
     fSingleTurnCount(0),
     fMultiTurnCount(0),
     fSaveHoughTransform(0),
-    fDrawFictitiousPlane(1)
+    entryId(0)
   {}
   virtual ~TMyEventLoop() {}
  
@@ -68,16 +68,23 @@ public:
     fTrdata = new TTree("trdata", "Tree Data");
         
     fTrdata->Branch("eventId", &eventId, "eventId/I");
-    fTrdata->Branch("fpFit", &fpFit, "fpFit/D");
-    fTrdata->Branch("fChi2", &fChi2, "fChi2/D");
-    fTrdata->Branch("fNdf", &fNdf, "fNdf/I");
-    fTrdata->Branch("fChi2Ndf", &fChi2Ndf, "fChi2Ndf/D");
-    fTrdata->Branch("fpEnter", &fpEnter, "fpEnter/D");
-    fTrdata->Branch("fpIni", &fpIni, "fpIni/D");
+    fTrdata->Branch("entryId", &entryId, "entryId/I");
+    fTrdata->Branch("nPOCA", &nPOCA, "nPOCA/I");
+    fTrdata->Branch("POCAx", POCAx, "POCAx[nPOCA]/D");
+    fTrdata->Branch("POCAy", POCAy, "POCAy[nPOCA]/D");
+    fTrdata->Branch("POCAz", POCAz, "POCAz[nPOCA]/D");
+    fTrdata->Branch("CDCEnterX", &CDCEnterX, "CDCEnterX/D");
+    fTrdata->Branch("CDCEnterY", &CDCEnterY, "CDCEnterY/D");
+    fTrdata->Branch("CDCEnterZ", &CDCEnterZ, "CDCEnterZ/D");
+    fTrdata->Branch("CDCEnterPx", &CDCEnterPx, "CDCEnterPx/D");
+    fTrdata->Branch("CDCEnterPy", &CDCEnterPy, "CDCEnterPy/D");
+    fTrdata->Branch("CDCEnterPz", &CDCEnterPz, "CDCEnterPz/D");
+    fTrdata->Branch("CDCEnterPz", &CDCEnterPz, "CDCEnterPz/D");
+    fTrdata->Branch("RecoPt", &RecoPt, "RecoPt/D");	
   }
   
   bool operator () (COMET::ICOMETEvent& event) {
-    
+
     eventId = event.GetEventId();
     if (eventId>fEventsNumForAnaly) return true;
         
@@ -95,8 +102,7 @@ public:
 
     IMCTrigger* MCTrigger = new IMCTrigger("mctrigger", "MC trigger");
     IHoughTransform* HoughTransform = new IHoughTransform("houghtransform","Hough Transform");
-    IGenFitting* GenFitting = new IGenFitting("genfitting", "GenFitting");
-    IFictitiousPlane* FictitiousPlane = new IFictitiousPlane("fictitiousplane","Fictitious Plane");
+    IHelixTracker* HelixTracker = new IHelixTracker("helixtracker","Helix Tracker");
 
     ////////////////////////////////////////////////////
     //////              Trigger                  ///////               
@@ -117,9 +123,6 @@ public:
 
     TCanvas *c_hits;
     if (fSaveHoughTransform) c_hits = new TCanvas("c_hits", "c_hits", 1000,1000);  
-    TCanvas *c_FP;
-    if (fDrawFictitiousPlane) c_FP  = new TCanvas("c_FP", "c_FP", 1000,1000);
-
 
     HoughTransform->LoadMCHits(CDCHits_DetResp, Trajectories, CDCHits);
     HoughTransform->PrintMCStatus();    
@@ -154,18 +157,34 @@ public:
       if (RecoCL5==1 && Reco2DCharge==-1 && nRecoHit>30 && MCTurnNumber==1){
 	fSingleTurnCount++;		
 
-	// Analysis With Fictitious Plane
-	FictitiousPlane->LoadMCHits(CDCHits_DetResp, Trajectories, CDCHits);
-	FictitiousPlane->LoadHitsAfterHT(CDCHits_DetResp, HoughTransform);
-	//FictitiousPlane->AddRandomHitPairs(4,1);
-	FictitiousPlane->AddSideHitPairs(4,1);	
+	// Helix Tracker
+	HelixTracker->LoadMCHits(CDCHits_DetResp, Trajectories, CDCHits);
+	HelixTracker->LoadHitsAfterHT(CDCHits_DetResp, HoughTransform);
+	HelixTracker->AddSideHitPairs(RecoMaxWireLayerId,2);	 // domain 2
+	HelixTracker->AddSideHitPairs(RecoMaxWireLayerId,1);	 // domain 1
 
-      	//fTrdata->Fill();	
+	// input POCAs to ROOT file
 
-	if (fDrawFictitiousPlane){
-	  FictitiousPlane->DrawHitsOnFictitiousPlane(c_FP);
-	  c_FP->SaveAs("./FictitiousPlane"+TString(Form ("%d", eventId))+".png");
-	}	
+	std::vector <TVector3> POCAs = HelixTracker->GetPOCAs();
+	nPOCA=0;
+	for (Int_t i=0; i<POCAs.size(); i++){
+	  POCAx[nPOCA]=(POCAs.at(i))(0);
+	  POCAy[nPOCA]=(POCAs.at(i))(1);
+	  POCAz[nPOCA]=(POCAs.at(i))(2);
+	  nPOCA++;
+	}
+
+	TVector3 CDCEnterPos = HelixTracker->GetEnterPos();
+	TVector3 CDCEnterMom = HelixTracker->GetEnterMom();
+	CDCEnterX = CDCEnterPos(0);
+	CDCEnterY = CDCEnterPos(1);
+	CDCEnterZ = CDCEnterPos(2);
+	CDCEnterPx = CDCEnterMom(0);
+	CDCEnterPy = CDCEnterMom(1);
+	CDCEnterPz = CDCEnterMom(2);
+      	fTrdata->Fill();	
+
+	entryId++;
       }  
 
       //////////////////////////////
@@ -180,10 +199,6 @@ public:
     delete MCTrigger;
     delete HoughTransform;
     if (fSaveHoughTransform) {c_hits->Close(); delete c_hits;}
-    if (fDrawFictitiousPlane) {c_FP->Close(); delete c_FP;}
-
-    delete GenFitting;
-    delete FictitiousPlane;
 
     return true;
   }
@@ -219,20 +234,22 @@ private:
 
   /*** HoughTransform ***/
   bool fSaveHoughTransform;
-  bool fDrawFictitiousPlane;
 
-  /*** GenFitting ***/
-  //TVector3 fFittedMom;
 
   /*** Branch Variables ***/
   Int_t    eventId;
-  Double_t fpFit;
-  Double_t fChi2;
-  Int_t    fNdf;
-  Double_t fChi2Ndf;
-
-  Double_t fpEnter;
-  Double_t fpIni;
+  Int_t    entryId;
+  Int_t nPOCA;
+  Double_t POCAx[1000];
+  Double_t POCAy[1000];
+  Double_t POCAz[1000];
+  Double_t CDCEnterX;
+  Double_t CDCEnterY;
+  Double_t CDCEnterZ;
+  Double_t CDCEnterPx;
+  Double_t CDCEnterPy;
+  Double_t CDCEnterPz;
+  Double_t RecoPt;
 
 };
 

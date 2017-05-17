@@ -1,8 +1,9 @@
-#ifndef TFictitiousPlane_hxx_seen
-#define TFictitiousPlane_hxx_seen
+#ifndef THelixTracker_hxx_seen
+#define THelixTracker_hxx_seen
 
 #include <ITracking.hxx>
 #include <IHoughTransform.hxx>
+#include <IFictitiousPlane.hxx>
 
 #include <vector>
 #include <map>
@@ -27,29 +28,10 @@
 #include <IReconTrackCand.hxx>
 #include <IFieldManager.hxx>
 
-TVector3 GetPOCAofTwoWires(TVector3 wireEnd0_lo, TVector3 wireEnd1_lo, TVector3 wireEnd0_up, TVector3 wireEnd1_up);
-TVector3 GetVectorCrossingCenter(TVector3 wireEnd0_lo, TVector3 wireEnd1_lo, TVector3 wireEnd0_up, TVector3 wireEnd1_up, TVector3 POCA);
-
-struct SingleHit{
-  TVector3 wireEnd0;
-  TVector3 wireEnd1;
-  double driftDist;
-  int wireId;
-  int layerId;
-  int domain;
-};
-
-struct HitPair{
-  SingleHit h1;
-  SingleHit h2;
-  TVector3  cV;
-};
-
-
-class IFictitiousPlane: public ITracking {
+class IHelixTracker: public ITracking {
 public:
-  IFictitiousPlane(const char*name, const char* title);
-  virtual ~IFictitiousPlane();
+  IHelixTracker(const char*name, const char* title);
+  virtual ~IHelixTracker();
 
   /// called at the begin of run or else (should not be in event-by-event)
   int  Init();
@@ -63,13 +45,16 @@ public:
   }
 
   void LoadHitsAfterHT(COMET::IHandle<COMET::IHitSelection> hitHandle, IHoughTransform* hough);
-  void AddRandomHitPairs(int n, int domain);
   void AddSideHitPairs(int n, int domain);
-  void DrawHitsOnFictitiousPlane(TCanvas* canvas);
+  std::vector <TVector3> GetPOCAs() { return fPOCAs; }
+  TVector3 GetEnterPos() {return TVector3(fCDCEnterX,fCDCEnterY,fCDCEnterZ);}
+  TVector3 GetEnterMom() {return TVector3(fCDCEnterPx,fCDCEnterPy,fCDCEnterPz);}  
+  
 
 private:
   std::vector <HitPair> fHitPairs;
-  
+  std::vector <TVector3> fPOCAs;
+
   //std::vector <HitPair> fHitPairsDomain2;
 };
 #endif

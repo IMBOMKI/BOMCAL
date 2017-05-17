@@ -60,11 +60,15 @@ protected:
   double fWireEnd1Z[10000];
   int    fWireLayerId[10000];
   int    fWireId[10000];
-  int    fDomain[10000];
-  bool   fSide[10000];
-  int    fWireMaxLayerId;
+  int    fMaxWireLayerId;
   int    fTurnId[10000];
   int    fTurnNumber;
+
+  // Temporal member
+  int    fDomain[10000];
+  bool   fSide[10000];
+  bool   fOuter[10000];
+  bool   fInner[10000];
 
 public:
   ITracking(const char*name, const char* title);

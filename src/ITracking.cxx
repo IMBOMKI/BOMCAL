@@ -219,7 +219,7 @@ void ITracking::LoadMCHits(COMET::IHandle<COMET::IHitSelection> hitHandle, COMET
     int layer = COMET::IGeomInfo::Get().CDC().GetLayer(wire);
 
     fWireLayerId[fnCALCDCHit]  = layer;
-    if (fWireMaxLayerId<layer) fWireMaxLayerId = layer;
+    if (fMaxWireLayerId<layer) fMaxWireLayerId = layer;
     
     TVector3 g4HitPos;
     g4HitPos(0)=0.5 * (g4HitSeg->GetStopX()*(1/unit::cm)+g4HitSeg->GetStartX()*(1/unit::cm));

@@ -23,6 +23,8 @@
 #include <TDirectory.h>
 #include "TEllipse.h"
 
+TVector3 GetPOCAofTwoWires(TVector3 wireEnd0_lo, TVector3 wireEnd1_lo, TVector3 wireEnd0_up, TVector3 wireEnd1_up);
+TVector3 GetVectorCrossingCenter(TVector3 wireEnd0_lo, TVector3 wireEnd1_lo, TVector3 wireEnd0_up, TVector3 wireEnd1_up, TVector3 POCA);
 
 IFictitiousPlane::IFictitiousPlane(const char* name, const char* title)
   :ITracking(name, title)
@@ -241,9 +243,9 @@ TVector3 GetPOCAofTwoWires(TVector3 wireEnd0_lo, TVector3 wireEnd1_lo, TVector3 
   TVector3 qC=wireEnd0_up + t * v;
 
   // DOCA 
-  //std::cout << "DOCA: " << (w+s*u-t*v).Mag() << std::endl;
-  //std::cout << "pC: " << pC(0) << "  " << pC(1) << "  " << pC(2) << std::endl;
-  //std::cout << "qC: " << qC(0) << "  " << qC(1) << "  " << qC(2) << std::endl;
+  std::cout << "DOCA: " << (w+s*u-t*v).Mag() << std::endl;
+  std::cout << "pC: " << pC(0) << "  " << pC(1) << "  " << pC(2) << std::endl;
+  std::cout << "qC: " << qC(0) << "  " << qC(1) << "  " << qC(2) << std::endl;
   
   return (pC+qC)*0.5;
 }
@@ -258,6 +260,6 @@ TVector3 GetVectorCrossingCenter(TVector3 wireEnd0_lo, TVector3 wireEnd1_lo, TVe
   TVector3 c1 = wireEnd0_lo + u_t*u;
   TVector3 c2 = wireEnd0_up + v_t*v;
 
-  //std::cout << "CVector: " << c1(0)-c2(0) << "  " << c1(1)-c2(1) << "  " << c1(2)-c2(2) << std::endl;
+  std::cout << "CVector: " << c1(0)-c2(0) << "  " << c1(1)-c2(1) << "  " << c1(2)-c2(2) << std::endl;
   return c2-c1;
 }

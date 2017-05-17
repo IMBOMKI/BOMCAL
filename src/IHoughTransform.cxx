@@ -97,6 +97,8 @@ IHoughTransform::IHoughTransform(const char* name = "IHoughTransform", const cha
   fNumOfWiresPerLayer = new int[18]{198,204,210,216,222,228,234,240,246,252,258,264,270,276,282,288,294,300};
   fLayerRadius        = new double[18]{53.0, 54.6, 56.2, 57.8, 59.4, 61.0, 62.6, 64.2, 65.8, 67.4, 69.0, 70.6, 72.2, 73.8, 75.4, 77.0, 78.6, 80.2};
   memset(fRecoSideHit,0,sizeof(fRecoSideHit));
+  memset(fRecoOuterHit,0,sizeof(fRecoOuterHit));
+  memset(fRecoInnerHit,0,sizeof(fRecoInnerHit));
 }
 
 
@@ -579,20 +581,31 @@ void IHoughTransform::RecognizeHits(){
   }
 
   std::vector<int> SideWireId;
+  std::vector<int> OuterWireId;
+  std::vector<int> InnerWireId;
+
   // Domain 1
   for (Int_t i_dom=1  ; i_dom<=2; i_dom++){  
     for (Int_t i_layer=0; i_layer<=fRecoMaxWireLayerId; i_layer++){
-      Double_t angle =0;
-      Int_t    wireId=-1;
+      Double_t maxAngle=0;
+      Double_t minAngle=10000;
+      Int_t    outerWireId=-1;
+      Int_t    innerWireId=-1;
       for (Int_t i=0; i<Layer.size(); i++){
 	if (Layer.at(i)==i_layer && Domain.at(i)==i_dom){
-	  if (Angle.at(i)>angle){
-	    angle  = Angle.at(i);	  
-	    wireId = WireId.at(i);
-	  }
+	  if (Angle.at(i)>maxAngle){
+	    maxAngle  = Angle.at(i);	  
+	    outerWireId = WireId.at(i);
+	  }	  
+	  if (Angle.at(i)<minAngle){
+	    minAngle  = Angle.at(i);	  
+	    innerWireId = WireId.at(i);
+	  }	  
 	}
       }    
-      if (wireId>0) SideWireId.push_back(wireId);
+      if (outerWireId>0) SideWireId.push_back(outerWireId);
+      if (outerWireId>0) OuterWireId.push_back(outerWireId);
+      if (innerWireId>0) InnerWireId.push_back(innerWireId);
     }
   }
 
@@ -600,6 +613,12 @@ void IHoughTransform::RecognizeHits(){
     int wireId = fRecoWireId[i_reco];
     if (std::find(SideWireId.begin(), SideWireId.end(), wireId) != SideWireId.end()){
       fRecoSideHit[i_reco]=1;
+    }
+    if (std::find(OuterWireId.begin(), OuterWireId.end(), wireId) != OuterWireId.end()){
+      fRecoOuterHit[i_reco]=1;
+    }
+    if (std::find(InnerWireId.begin(), InnerWireId.end(), wireId) != InnerWireId.end()){
+      fRecoInnerHit[i_reco]=1;
     }
   }
 
@@ -919,23 +938,41 @@ void IHoughTransform::DrawEvent(TCanvas* canvas){
   grRecoOddhits->Draw("P");      
 
   // Side Hits
-  double fSideWireEnd0X[1000];
-  double fSideWireEnd0Y[1000];  
-  int    fnSideHit=0;
+  double fOuterWireEnd0X[1000];
+  double fOuterWireEnd0Y[1000];  
+  int    fnOuterHit=0;
   for (int i_reco=0; i_reco<fnRecoHit; i_reco++){
-    if (fRecoSideHit[i_reco]==1){
-      fSideWireEnd0X[fnSideHit]=fRecoWireEnd0X[i_reco];
-      fSideWireEnd0Y[fnSideHit]=fRecoWireEnd0Y[i_reco];
-      fnSideHit++;
+    if (fRecoOuterHit[i_reco]==1){
+      fOuterWireEnd0X[fnOuterHit]=fRecoWireEnd0X[i_reco];
+      fOuterWireEnd0Y[fnOuterHit]=fRecoWireEnd0Y[i_reco];
+      fnOuterHit++;
     }
   }
 
-  TGraph *grSideHits = new TGraph(fnSideHit, fSideWireEnd0X, fSideWireEnd0Y);
-  grSideHits->SetTitle("SideHits");
-  grSideHits->SetMarkerStyle(20);
-  grSideHits->SetMarkerSize(1);
-  grSideHits->SetMarkerColor(5); // Side Hit - Yellow 
-  grSideHits->Draw("P");        
+  TGraph *grOuterHits = new TGraph(fnOuterHit, fOuterWireEnd0X, fOuterWireEnd0Y);
+  grOuterHits->SetTitle("OuterHits");
+  grOuterHits->SetMarkerStyle(20);
+  grOuterHits->SetMarkerSize(1);
+  grOuterHits->SetMarkerColor(5); // Outer Hit - Yellow 
+  grOuterHits->Draw("P");        
+
+  double fInnerWireEnd0X[1000];
+  double fInnerWireEnd0Y[1000];  
+  int    fnInnerHit=0;
+  for (int i_reco=0; i_reco<fnRecoHit; i_reco++){
+    if (fRecoInnerHit[i_reco]==1){
+      fInnerWireEnd0X[fnInnerHit]=fRecoWireEnd0X[i_reco];
+      fInnerWireEnd0Y[fnInnerHit]=fRecoWireEnd0Y[i_reco];
+      fnInnerHit++;
+    }
+  }
+
+  TGraph *grInnerHits = new TGraph(fnInnerHit, fInnerWireEnd0X, fInnerWireEnd0Y);
+  grInnerHits->SetTitle("InnerHits");
+  grInnerHits->SetMarkerStyle(20);
+  grInnerHits->SetMarkerSize(1);
+  grInnerHits->SetMarkerColor(8); // Inner Hit - Green
+  grInnerHits->Draw("P");        
 }
 
 std::vector<int> IHoughTransform::GetRecoWireId(){
@@ -966,6 +1003,22 @@ std::vector<bool> IHoughTransform::GetRecoSideHit(){
   std::vector<bool> side;
   for (int i=0; i<fnRecoHit; i++){
     side.push_back(fRecoSideHit[i]);
+  }
+  return side;
+}
+
+std::vector<bool> IHoughTransform::GetRecoOuterHit(){
+  std::vector<bool> side;
+  for (int i=0; i<fnRecoHit; i++){
+    side.push_back(fRecoOuterHit[i]);
+  }
+  return side;
+}
+
+std::vector<bool> IHoughTransform::GetRecoInnerHit(){
+  std::vector<bool> side;
+  for (int i=0; i<fnRecoHit; i++){
+    side.push_back(fRecoInnerHit[i]);
   }
   return side;
 }
