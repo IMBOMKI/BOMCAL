@@ -363,3 +363,43 @@ void ITracking::PrintMCStatus(){
 int ITracking::Finish(){
   return 1;
 }
+
+
+TVector3 GetPOCAofTwoWires(TVector3 wireEnd0_lo, TVector3 wireEnd1_lo, TVector3 wireEnd0_up, TVector3 wireEnd1_up){
+  TVector3 u = wireEnd1_lo-wireEnd0_lo;
+  TVector3 v = wireEnd1_up-wireEnd0_up;
+  TVector3 w = wireEnd0_lo-wireEnd0_up;
+  double a,b,c,d,e,s,t;
+  a = u * u; 
+  b = u * v;
+  c = v * v;
+  d = u * w;
+  e = v * w;
+  
+  s = (b*e-c*d)/(a*c-b*b);
+  t = (a*e-b*d)/(a*c-b*b);
+
+  TVector3 pC=wireEnd0_lo + s * u;
+  TVector3 qC=wireEnd0_up + t * v;
+
+  // DOCA 
+  //std::cout << "DOCA: " << (w+s*u-t*v).Mag() << std::endl;
+  //std::cout << "pC: " << pC(0) << "  " << pC(1) << "  " << pC(2) << std::endl;
+  //std::cout << "qC: " << qC(0) << "  " << qC(1) << "  " << qC(2) << std::endl;
+  
+  return (pC+qC)*0.5;
+}
+
+TVector3 GetVectorCrossingCenter(TVector3 wireEnd0_lo, TVector3 wireEnd1_lo, TVector3 wireEnd0_up, TVector3 wireEnd1_up, TVector3 POCA){
+  TVector3 u = wireEnd1_lo-wireEnd0_lo;
+  TVector3 v = wireEnd1_up-wireEnd0_up;
+  
+  double u_t   = (POCA(0)-wireEnd0_lo(0))/(wireEnd1_lo(0)-wireEnd0_lo(0));
+  double v_t   = (POCA(0)-wireEnd0_up(0))/(wireEnd1_up(0)-wireEnd0_up(0));
+
+  TVector3 c1 = wireEnd0_lo + u_t*u;
+  TVector3 c2 = wireEnd0_up + v_t*v;
+
+  //std::cout << "CVector: " << c1(0)-c2(0) << "  " << c1(1)-c2(1) << "  " << c1(2)-c2(2) << std::endl;
+  return c2-c1;
+}

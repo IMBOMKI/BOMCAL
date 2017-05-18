@@ -223,6 +223,7 @@ void IFictitiousPlane::DrawHitsOnFictitiousPlane(TCanvas* canvas){
   }
 }
 
+/*
 TVector3 GetPOCAofTwoWires(TVector3 wireEnd0_lo, TVector3 wireEnd1_lo, TVector3 wireEnd0_up, TVector3 wireEnd1_up){
   TVector3 u = wireEnd1_lo-wireEnd0_lo;
   TVector3 v = wireEnd1_up-wireEnd0_up;
@@ -261,3 +262,4 @@ TVector3 GetVectorCrossingCenter(TVector3 wireEnd0_lo, TVector3 wireEnd1_lo, TVe
   //std::cout << "CVector: " << c1(0)-c2(0) << "  " << c1(1)-c2(1) << "  " << c1(2)-c2(2) << std::endl;
   return c2-c1;
 }
+*/

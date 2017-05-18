@@ -174,6 +174,7 @@ public:
 	  nPOCA++;
 	}
 
+	// MC Truth Value
 	TVector3 CDCEnterPos = HelixTracker->GetEnterPos();
 	TVector3 CDCEnterMom = HelixTracker->GetEnterMom();
 	CDCEnterX = CDCEnterPos(0);

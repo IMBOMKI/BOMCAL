@@ -27,24 +27,6 @@
 #include <IReconTrackCand.hxx>
 #include <IFieldManager.hxx>
 
-TVector3 GetPOCAofTwoWires(TVector3 wireEnd0_lo, TVector3 wireEnd1_lo, TVector3 wireEnd0_up, TVector3 wireEnd1_up);
-TVector3 GetVectorCrossingCenter(TVector3 wireEnd0_lo, TVector3 wireEnd1_lo, TVector3 wireEnd0_up, TVector3 wireEnd1_up, TVector3 POCA);
-
-struct SingleHit{
-  TVector3 wireEnd0;
-  TVector3 wireEnd1;
-  double driftDist;
-  int wireId;
-  int layerId;
-  int domain;
-};
-
-struct HitPair{
-  SingleHit h1;
-  SingleHit h2;
-  TVector3  cV;
-};
-
 
 class IFictitiousPlane: public ITracking {
 public:

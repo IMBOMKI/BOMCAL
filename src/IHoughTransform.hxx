@@ -20,7 +20,26 @@
 #include "TGeoManager.h"
 #include "TGeoNode.h"
 #include "TCanvas.h"
-
+#include <TGeoVolume.h>
+#include <TRotation.h>
+#include "TStyle.h"
+#include "TH1.h"
+#include "TH2F.h"
+#include "TLegend.h"
+#include "TGaxis.h"
+#include "TFile.h"
+#include "TTree.h"
+#include "TNtuple.h"
+#include "TLegend.h"
+#include "THStack.h"
+#include "TMath.h"
+#include "TChain.h"
+#include "TGraph.h"
+#include "TGraph2D.h"
+#include "TEllipse.h"
+#include "TPolyLine.h"
+#include "TArc.h"
+#include "TVirtualFitter.h"
 
 class IHoughTransform: public ITracking {
 private:
@@ -137,6 +156,15 @@ private:
   bool   fRecoSideHit[10000];
   bool   fRecoOuterHit[10000];
   bool   fRecoInnerHit[10000];
+  std::vector <HitPair> fHitPairs;
+  std::vector <TVector3> fPOCAs;
+  Int_t fnPOCA;
+  Double_t fPOCAx[1000];
+  Double_t fPOCAy[1000];
+  Double_t fPOCAz[1000];
+  Double_t fAbsCx_Reseeded;
+  Double_t fAbsCy_Reseeded;
+  Double_t fFitpT_Reseeded;
 
 public:
   IHoughTransform(const char*name, const char* title);
@@ -163,6 +191,10 @@ public:
   void Process();
   void RecognizeHits();
 
+  void AddSideHits();
+  void TuneRadiusWithPOCAs();
+  //TVector3 GetPOCAofTwoWires(TVector3 wireEnd0_lo, TVector3 wireEnd1_lo, TVector3 wireEnd0_up, TVector3 wireEnd1_up);
+
   ////////////// After Transformation ///////////////
 
   std::vector<int> GetRecoWireId();
@@ -178,6 +210,9 @@ public:
   int  GetMaxWireLayerId() {return fRecoMaxWireLayerId;}
   int  Get2DCharge()       {return fReco2DCharge;}
   int  GetNumberOfRecognizedHits()   {return fnRecoHit; }
+  double GetpT_HT() { return fFitpT;};
+  double GetpT_Truth() { return fTruthpT;};
+  double GetpT_Reseeded() { return fFitpT_Reseeded;};
 
   void DrawEvent(TCanvas* canvas);
   void PrintMCStatus();

@@ -913,10 +913,12 @@ public:
 	COMET::ICDCmcDigit* CDCmcDigit = dynamic_cast<COMET::ICDCmcDigit*>(*digitIt);
 	COMET::IChannelId chanId = CDCmcDigit->GetChannelId();
 	std::vector<short> adcs  = CDCmcDigit->GetADCs();
+	/*
 	for (int i=0; i<adcs.size(); i++){
 	  std::cout << adcs.at(i) << "   ";
 	}
 	std::cout << std::endl;
+	*/
       }
     }
 

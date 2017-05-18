@@ -38,7 +38,7 @@ public:
     fCoincidenceCount(0),
     fSingleTurnCount(0),
     fMultiTurnCount(0),
-    fSaveHoughTransform(1)
+    fSaveHoughTransform(0)
   {}
   virtual ~TMyEventLoop() {}
  
@@ -74,6 +74,9 @@ public:
     fTrdata->Branch("fChi2Ndf", &fChi2Ndf, "fChi2Ndf/D");
     fTrdata->Branch("fpEnter", &fpEnter, "fpEnter/D");
     fTrdata->Branch("fpIni", &fpIni, "fpIni/D");
+    fTrdata->Branch("fpT_HT", &fpT_HT, "fpT_HT/D");
+    fTrdata->Branch("fpT_Reseeded", &fpT_Reseeded, "fpT_Reseeded/D");
+    fTrdata->Branch("fpT_Truth",&fpT_Truth, "fpT_Truth/D");
   }
   
   bool operator () (COMET::ICOMETEvent& event) {
@@ -117,6 +120,12 @@ public:
     //////              Tracking                 ///////               
     ////////////////////////////////////////////////////
 
+    /////////////////////
+    //                 //
+    // Hough Transform // 
+    //                 //
+    /////////////////////
+
     TCanvas *c_hits;
     if (fSaveHoughTransform) c_hits = new TCanvas("c_hits", "c_hits", 1000,1000);  
 
@@ -128,6 +137,11 @@ public:
       HoughTransform->ImportTriggerInfo(PairCandidates);
       HoughTransform->Process();      
       HoughTransform->RecognizeHits();
+      HoughTransform->TuneRadiusWithPOCAs();
+
+      fpT_HT       = HoughTransform->GetpT_HT();
+      fpT_Truth    = HoughTransform->GetpT_Truth();
+      fpT_Reseeded = HoughTransform->GetpT_Reseeded();
 
       int nRecoHit          =HoughTransform->GetNumberOfRecognizedHits();
       bool RecoCL3          =HoughTransform->GetCL3();     
@@ -144,7 +158,13 @@ public:
 
       std::cout << "Turn Number is: " << MCTurnNumber << std::endl;
       fCoincidenceCount++;
-      
+
+      //////////////// 
+      //            //
+      // GENFITTING // 
+      //            //
+      ////////////////
+
       if (RecoMaxWireLayerId>=4 && Reco2DCharge==-1 && RecoCL3==1 && nRecoHit>30 && MCTurnNumber==1){
 	fSingleTurnCount++;		
 
@@ -225,6 +245,9 @@ private:
 
   Double_t fpEnter;
   Double_t fpIni;
+  Double_t fpT_HT;
+  Double_t fpT_Reseeded;
+  Double_t fpT_Truth;
 
 };
 

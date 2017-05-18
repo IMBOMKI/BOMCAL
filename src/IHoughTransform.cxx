@@ -5,6 +5,7 @@
 #include <iostream>
 #include <algorithm>
 #include <map>
+#include <assert.h>
 
 #include <IOADatabase.hxx>
 #include <IReconBase.hxx>
@@ -29,30 +30,7 @@
 #include <IGeometryDatabase.hxx>
 #include <ICDCGeom.hxx>
 
-#include <TGeoManager.h>
-#include <TGeoNode.h>
-#include <TGeoVolume.h>
-#include <TRotation.h>
-#include "TCanvas.h"
-#include "TStyle.h"
-#include "TH1.h"
-#include "TH2F.h"
-#include "TLegend.h"
-#include "TGaxis.h"
-#include "TFile.h"
-#include "TTree.h"
-#include "TNtuple.h"
-#include "TLegend.h"
-#include "THStack.h"
-#include "TMath.h"
-#include "TChain.h"
-#include "TGraph.h"
-#include "TGraph2D.h"
-#include "TEllipse.h"
-#include "TPolyLine.h"
-
 bool IntComparison (int i,int j);
-
 void MakeCluster(std::vector<int> &WireIds, std::vector<std::vector< int> > &ClusterSet, int WireNumberInLayer);
 
 bool ifInsideDisk(double x, double y);
@@ -63,6 +41,8 @@ Int_t findMaxPoint(std::vector<Int_t> vec);
 std::pair<Double_t, Double_t> getRotatedXY(std::pair<Double_t, Double_t> xy, Double_t deg);
 Bool_t ifCircleIsPassing(Double_t rad, Double_t cX, Double_t cY, std::pair<Double_t, Double_t> ref1, std::pair<Double_t, Double_t> ref2);
 double getAngle(double x, double y, double cX, double cY);
+void circleResidual(Int_t &, Double_t *, Double_t &f, Double_t *par, Int_t);
+TGraph *POCAgr;
 
 IHoughTransform::IHoughTransform(const char* name = "IHoughTransform", const char* title="houghtransform")
   :ITracking(name,title),
@@ -72,7 +52,8 @@ IHoughTransform::IHoughTransform(const char* name = "IHoughTransform", const cha
    fRhoMax(0.02),
    fRhoMin(-0.02),
    fBandWidth(8),
-   fRadUncertainty(5),
+   fRadUncertainty(5), // <- Disk Radius
+   //fRadUncertainty(6),
    fRef(std::make_pair(0,0)),
    fnRecoHit(0),
    fnRecoHit_even(0),
@@ -99,6 +80,13 @@ IHoughTransform::IHoughTransform(const char* name = "IHoughTransform", const cha
   memset(fRecoSideHit,0,sizeof(fRecoSideHit));
   memset(fRecoOuterHit,0,sizeof(fRecoOuterHit));
   memset(fRecoInnerHit,0,sizeof(fRecoInnerHit));
+
+  fHitPairs.clear();
+  fPOCAs.clear();
+  fnPOCA=0;
+  memset(fPOCAx,0,sizeof(fPOCAx));
+  memset(fPOCAy,0,sizeof(fPOCAy));
+  memset(fPOCAz,0,sizeof(fPOCAz));
 }
 
 
@@ -125,17 +113,31 @@ void IHoughTransform::SetHoughTransformVariables(int nIter, int nBins, double nP
 
 void IHoughTransform::GetLocalCoordinate(){  
   for (Int_t i_hit=0; i_hit<fnCALCDCHit; i_hit++){
+    TVector3 test;
     TVector3 wireend0(fWireEnd0X[i_hit],fWireEnd0Y[i_hit],fWireEnd0Z[i_hit]);	
     TVector3 wireend1(fWireEnd1X[i_hit],fWireEnd1Y[i_hit],fWireEnd1Z[i_hit]);
+
+    //std::cout << "Master         : " << wireend0(0) << "  " << wireend0(1) << "  " << wireend0(2) << std::endl;
+
     if(!COMET::IGeomInfo::DetectorSolenoid().GetDetPositionInDSCoordinate(wireend0, wireend0)){
       continue;
       std::cout << "MisIdentifided wire is detected" << std::endl;}
     if(!COMET::IGeomInfo::DetectorSolenoid().GetDetPositionInDSCoordinate(wireend1, wireend1)){
       continue;
       std::cout << "MisIdentifided wire is detected" << std::endl;}
-    fWireEnd0X[i_hit]=wireend1(0);
-    fWireEnd0Y[i_hit]=wireend1(1);
-    fWireEnd0Z[i_hit]=wireend1(2);
+    
+    //std::cout << "Master -> Local: " << wireend0(0) << "  " << wireend0(1) << "  " << wireend0(2) << std::endl;
+    //if(!COMET::IGeomInfo::DetectorSolenoid().GetDetPositionInGlobalCoordinate(wireend0, test)){
+    //  continue;
+    //  std::cout << "MisIdentifided wire is detected" << std::endl;}
+    //  std::cout << "Local -> Master: " << test(0) << "  " << test(1) << "  " << test(2) << std::endl;
+
+    fWireEnd0X[i_hit]=wireend0(0);
+    fWireEnd0Y[i_hit]=wireend0(1);
+    fWireEnd0Z[i_hit]=wireend0(2);
+    fWireEnd1X[i_hit]=wireend1(0);
+    fWireEnd1Y[i_hit]=wireend1(1);
+    fWireEnd1Z[i_hit]=wireend1(2);
   }  
 }
 
@@ -239,12 +241,14 @@ void IHoughTransform::Process(){
 	Double_t oriX=origins[it].first; 
 	Double_t oriY=origins[it].second;
 	
-	if  (ifInsideDisk(oriX,oriY)==0){
+	     
+	if  (ifInsideDisk(oriX,oriY)==0){  // With Inside Disk option
 	  vote_max.push_back(0);
 	}	
        
 	else if (ifInsideDisk(oriX,oriY)==1){
-	  
+	
+	//if (ifInsideDisk(oriX,oriY)>-1){  // Without Inside Disk Option
 	  ///////////////////////////////////////
 	  ////   Conformal Transformation    ////  
 	  ///////////////////////////////////////
@@ -339,7 +343,7 @@ void IHoughTransform::Process(){
   fRad_even = sqrt(pow(fCx_even,2)+pow(fCy_even,2));
   fRad_odd  = sqrt(pow(fCx_odd,2)+pow(fCy_odd,2));   
   fFitpT    = (fRad_even/0.3356+fRad_odd/0.3356)/2;
-  fTruthpT  = sqrt(pow(fGenTrPy,2)+pow(fGenTrPz,2));
+  fTruthpT  = sqrt(pow(fCDCEnterPy,2)+pow(fCDCEnterPz,2));
 }
 
 void IHoughTransform::RecognizeHits(){
@@ -744,9 +748,99 @@ void IHoughTransform::RecognizeHits(){
   }       
 }
 
-//void IHoughTransform::GetMasterCoordinate(){
-//  
-//}
+void IHoughTransform::AddSideHits(){
+  //assert(n<=fRecoMaxWireLayerId);
+  for (int domain=1; domain<=2; domain++){
+    for (int i=0; i<fRecoMaxWireLayerId; i++){ 
+   
+      struct SingleHit hit_lo, hit_up;
+      struct HitPair hitPair;
+      
+      int i_lo=-1;
+      int i_up=-1;
+      
+      for (int i_hit=0; i_hit<fnRecoHit; i_hit++){
+	if      (fRecoWireLayerId[i_hit]==i   && fRecoDomain[i_hit]==domain && fRecoInnerHit[i_hit]==1) i_lo=i_hit;
+	else if (fRecoWireLayerId[i_hit]==i+1 && fRecoDomain[i_hit]==domain && fRecoOuterHit[i_hit]==1) i_up=i_hit;
+      }
+      
+      if (i_lo==-1 || i_up==-1) continue;
+      
+      TVector3 wireEnd0_lo = TVector3(fRecoWireEnd0X[i_lo], fRecoWireEnd0Y[i_lo], fRecoWireEnd0Z[i_lo]);
+      TVector3 wireEnd1_lo = TVector3(fRecoWireEnd1X[i_lo], fRecoWireEnd1Y[i_lo], fRecoWireEnd1Z[i_lo]);
+      
+      TVector3 wireEnd0_up = TVector3(fRecoWireEnd0X[i_up], fRecoWireEnd0Y[i_up], fRecoWireEnd0Z[i_up]);
+      TVector3 wireEnd1_up = TVector3(fRecoWireEnd1X[i_up], fRecoWireEnd1Y[i_up], fRecoWireEnd1Z[i_up]);
+      
+      hit_lo.wireEnd0  = wireEnd0_lo;
+      hit_lo.wireEnd1  = wireEnd1_lo;
+      hit_lo.driftDist = fRecoDriftDist[i_lo];
+      hit_lo.wireId    = fRecoWireId[i_lo];
+      hit_lo.layerId   = fRecoWireLayerId[i_lo];
+      hit_lo.domain    = fRecoDomain[i_lo];
+      
+      hit_up.wireEnd0  = wireEnd0_up;
+      hit_up.wireEnd1  = wireEnd1_up;
+      hit_up.driftDist = fRecoDriftDist[i_up];
+      hit_up.wireId    = fRecoWireId[i_up];
+      hit_up.layerId   = fRecoWireLayerId[i_up];
+      hit_up.domain    = fRecoDomain[i_up];
+      
+      //std::cout << wireEnd0_lo(0) << "  " << wireEnd0_lo(1) << "  " << wireEnd0_lo(2) << std::endl;
+      //std::cout << wireEnd1_lo(0) << "  " << wireEnd1_lo(1) << "  " << wireEnd1_lo(2) << std::endl;
+      //std::cout << wireEnd0_up(0) << "  " << wireEnd0_up(1) << "  " << wireEnd0_up(2) << std::endl;
+      //std::cout << wireEnd1_up(0) << "  " << wireEnd1_up(1) << "  " << wireEnd1_up(2) << std::endl;
+
+      TVector3 POCA = GetPOCAofTwoWires(hit_lo.wireEnd0, hit_lo.wireEnd1, hit_up.wireEnd0, hit_up.wireEnd1);
+      TVector3 cVec = GetVectorCrossingCenter(hit_lo.wireEnd0, hit_lo.wireEnd1, hit_up.wireEnd0, hit_up.wireEnd1,POCA);
+      
+      hitPair.h1 = hit_lo;
+      hitPair.h2 = hit_up;
+      hitPair.cV = cVec;
+      
+      fHitPairs.push_back(hitPair);
+      fPOCAs.push_back(POCA);
+      
+      //std::cout << "Layer: <" << i << " " << i+1 << ">   Domain: " << domain << std::endl;
+      //std::cout << "POCA:  " << POCA(0) << "  " << POCA(1) << "  " << POCA(2) << std::endl;
+    }
+  }
+  
+  for (Int_t i=0; i<fPOCAs.size(); i++){    
+    fPOCAx[fnPOCA]=fPOCAs.at(i)(0);
+    fPOCAy[fnPOCA]=fPOCAs.at(i)(1);
+    fPOCAz[fnPOCA]=fPOCAs.at(i)(2);
+
+    //std::cout << fPOCAx[fnPOCA] << "  " << fPOCAy[fnPOCA] << "  " << fPOCAz[fnPOCA] << std::endl;
+    fnPOCA++;
+  }
+}
+
+void IHoughTransform::TuneRadiusWithPOCAs(){
+  AddSideHits();
+  POCAgr = new TGraph(fnPOCA,fPOCAx,fPOCAy);
+  TVirtualFitter::SetDefaultFitter("Minuit");  //default is Minuit
+  TVirtualFitter *fitter = TVirtualFitter::Fitter(0, 3);
+  fitter->SetFCN(circleResidual);
+  
+  Double_t seedCx   = (fAbsCx_even+fAbsCx_odd)/2;
+  Double_t seedCy   = (fAbsCy_odd+fAbsCy_odd)/2;
+  Double_t seedRad  = (fRad_even+fRad_odd)/2;
+
+  fitter->SetParameter(0, "seedCx", seedCx,  0.1, seedCx-10,seedCx+10);
+  fitter->SetParameter(1, "seedCy", seedCy,  0.1, seedCy-10,seedCy+10);
+  fitter->SetParameter(2, "seedRad",seedRad, 0.1, seedRad-6,seedRad+6);
+
+  Double_t arglist[1] = {0};
+  fitter->ExecuteCommand("MIGRAD", arglist, 0);
+
+  fAbsCx_Reseeded = fitter->GetParameter(0);
+  fAbsCy_Reseeded = fitter->GetParameter(1);
+  fFitpT_Reseeded = (fitter->GetParameter(2))/0.3356;
+  std::cout << "Seed Value: " << seedCx << "  " << seedCy << "  " << seedRad/0.3356 << std::endl;
+  std::cout << "Result    : " << fAbsCx_Reseeded << "  " << fAbsCy_Reseeded << "  " << fFitpT_Reseeded << std::endl;
+
+}
 
 void IHoughTransform::PrintMCStatus(){
   ITracking::PrintMCStatus();
@@ -973,6 +1067,13 @@ void IHoughTransform::DrawEvent(TCanvas* canvas){
   grInnerHits->SetMarkerSize(1);
   grInnerHits->SetMarkerColor(8); // Inner Hit - Green
   grInnerHits->Draw("P");        
+
+  // POCAs
+  POCAgr->SetTitle("POCAs");
+  POCAgr->SetMarkerStyle(20);
+  POCAgr->SetMarkerSize(1);
+  POCAgr->SetMarkerColor(40); // Inner Hit - Green
+  POCAgr->Draw("P");  
 }
 
 std::vector<int> IHoughTransform::GetRecoWireId(){
@@ -1077,7 +1178,6 @@ void MakeCluster(std::vector<int> &WireIds, std::vector<std::vector< int > > &Cl
   }
 }
 
-
 bool ifInsideDisk(double x, double y){
   if (pow(x,2)+pow(y,2)<100){ return 1;}
   else {return 0;}
@@ -1139,4 +1239,18 @@ double getAngle(double x, double y, double cX, double cY){
   double v2Mag = TMath::Sqrt(cX*cX+cY*cY);
   double angle = TMath::ASin(cross/(v1Mag*v2Mag));
   return angle;
+}
+
+void circleResidual(Int_t &, Double_t *, Double_t &f, Double_t *par, Int_t) {
+  //minimisation function computing the sum of squares of residuals
+  Int_t np = POCAgr->GetN();
+  f = 0;
+  Double_t *x = POCAgr->GetX();
+  Double_t *y = POCAgr->GetY();
+  for (Int_t i=0;i<np;i++) {
+    Double_t u = x[i] - par[0];
+    Double_t v = y[i] - par[1];
+    Double_t dr = par[2] - TMath::Sqrt(u*u+v*v);
+    f += dr*dr;
+  }
 }
