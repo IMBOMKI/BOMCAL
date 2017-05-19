@@ -151,7 +151,7 @@ private:
   bool   fRecoCL5;
   int    fRecoMaxWireLayerId;
 
-  // Temporal feature
+  // Temporal members
   int    fRecoDomain[10000];
   bool   fRecoSideHit[10000];
   bool   fRecoOuterHit[10000];
@@ -164,8 +164,18 @@ private:
   Double_t fPOCAz[1000];
   Double_t fAbsCx_Reseeded;
   Double_t fAbsCy_Reseeded;
+  Double_t fFitR_Reseeded;
   Double_t fFitpT_Reseeded;
-
+  Double_t fEnterX_domain1;
+  Double_t fEnterY_domain1;
+  Double_t fEnterX_domain2;
+  Double_t fEnterY_domain2;
+  Double_t fEnterPx_domain1;
+  Double_t fEnterPy_domain1;
+  Double_t fEnterPx_domain2;
+  Double_t fEnterPy_domain2;
+  TVector3 fXY_domain1, fXY_domain2;
+  TVector3 fPxPy_domain1, fPxPy_domain2;
 public:
   IHoughTransform(const char*name, const char* title);
   virtual ~IHoughTransform();
@@ -213,6 +223,11 @@ public:
   double GetpT_HT() { return fFitpT;};
   double GetpT_Truth() { return fTruthpT;};
   double GetpT_Reseeded() { return fFitpT_Reseeded;};
+  TVector3 GetCenter_Reseeded() { return  TVector3(fAbsCx_Reseeded,fAbsCy_Reseeded,0); }
+  std::pair<TVector3, TVector3> GetEnterXYPair_Reseeded() { return std::make_pair(fXY_domain1,fXY_domain2);}
+  std::pair<TVector3, TVector3> GetEnterPxPyPair_Reseeded() { return std::make_pair(fPxPy_domain1,fPxPy_domain2);}
+  TVector3 GetEnterPos_Truth() { return TVector3(fCDCEnterX,fCDCEnterY,fCDCEnterZ);}
+  TVector3 GetEnterMom_Truth() { return TVector3(fCDCEnterPx,fCDCEnterPy,fCDCEnterPz);}
 
   void DrawEvent(TCanvas* canvas);
   void PrintMCStatus();

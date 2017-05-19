@@ -86,7 +86,7 @@ IGenFitting::IGenFitting(const char* name, const char* title)
   ,fMethod("DAF")       // DAF -> Work for WireMeasurement
   ,fPID(11)
   ,fMinIterations(10)
-  ,fMaxIterations(100)
+  ,fMaxIterations(60)
    //,fMinHitsInTrack(10)
    //,fMinNDF(4)
    //,fMaxMomentum(250)
@@ -102,6 +102,13 @@ IGenFitting::IGenFitting(const char* name, const char* title)
    //,fSigmaD(0.005)
   ,fSigmaWP(0.001)
   ,fSaveHistogram(true)
+   
+  ,fzIni(590)
+  ,fzFin(690)
+  ,fzBin(10)
+  ,fPzIni(-60)
+  ,fPzFin(60)
+  ,fPzBin(12)
 {
   //if (fSaveTree) fTree = new TTree("gftree", "GenFit tree");
 }
@@ -141,6 +148,7 @@ int IGenFitting::EndOfEvent()
   return 0;
 }    
 
+
 void IGenFitting::LoadHitsAfterHT(COMET::IHandle<COMET::IHitSelection> hitHandle, IHoughTransform* hough){  
   std::vector<int> wireId      = hough->GetRecoWireId();
   std::vector<double> driftDist= hough->GetRecoDriftDist();
@@ -166,9 +174,28 @@ void IGenFitting::LoadHitsAfterHT(COMET::IHandle<COMET::IHitSelection> hitHandle
   }
 }  
 
+int IGenFitting::DoFitWithIteration(IHoughTransform* hough){
+
+  genfit::AbsTrackRep *rep = new genfit::RKTrackRep(fPID);
+  
+  // Transverse Pos&Mom seed
+  TVector3 fFitEnterPos = HoughTransform->GetEnterXYPair_Reseeded().second;
+  TVector3 fFitEnterMom = HoughTransform->GetEnterPxPyPair_Reseeded().second;
+  if(!COMET::IGeomInfo::DetectorSolenoid().GetDetPositionInGlobalCoordinate(fFitEnterPos, fFitEnterPos)){std::cout << "Coordinate change fails (Local to Master)" << std::endl; return true;}
+  fFitEnterX  = fFitEnterPos(0);
+  fFitEnterY  = fFitEnterPos(1);
+  fFitEnterPz = -fFitEnterMom(0);
+  fFitEnterPy = fFitEnterMom(1);
+
+
+
+}
+
+
 int IGenFitting::DoFit(){
 
-
+  gRandom->SetSeed(1);
+  
   //genfit::Track * tmpTrack(NULL);
   //fFitTrack = tmpTrack;
   //genfit::Track *fitTrack(NULL);
@@ -193,6 +220,12 @@ int IGenFitting::DoFit(){
   // 3. True Entering value  
   TVector3 posInit = TVector3(fCDCEnterX,fCDCEnterY,fCDCEnterZ);     // cm unit
   TVector3 momInit = TVector3(fCDCEnterPx,fCDCEnterPy,fCDCEnterPz); // MeV unit
+
+  // (Optional) Smearing TVector3
+  TVector3 posSmear(gRandom->Uniform(-50,50),gRandom->Uniform(-50,50),gRandom->Uniform(-50,50));
+  TVector3 momSmear(gRandom->Uniform(-50,50),gRandom->Uniform(-50,50),gRandom->Uniform(-50,50));  
+  //posInit += posSmear;
+  //momInit += momSmear;
 
   /// Temporal solution to convert the unit
   momInit *= 0.001; /// Convert from MeV to GeV

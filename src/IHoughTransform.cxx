@@ -43,6 +43,7 @@ Bool_t ifCircleIsPassing(Double_t rad, Double_t cX, Double_t cY, std::pair<Doubl
 double getAngle(double x, double y, double cX, double cY);
 void circleResidual(Int_t &, Double_t *, Double_t &f, Double_t *par, Int_t);
 TGraph *POCAgr;
+std::pair<TVector3, TVector3> getEnterXYPairs(Double_t x1,Double_t y1,Double_t r1, Double_t r2); // For each of domain1 and domain2
 
 IHoughTransform::IHoughTransform(const char* name = "IHoughTransform", const char* title="houghtransform")
   :ITracking(name,title),
@@ -836,10 +837,32 @@ void IHoughTransform::TuneRadiusWithPOCAs(){
 
   fAbsCx_Reseeded = fitter->GetParameter(0);
   fAbsCy_Reseeded = fitter->GetParameter(1);
+  fFitR_Reseeded  = fitter->GetParameter(2);
   fFitpT_Reseeded = (fitter->GetParameter(2))/0.3356;
   std::cout << "Seed Value: " << seedCx << "  " << seedCy << "  " << seedRad/0.3356 << std::endl;
   std::cout << "Result    : " << fAbsCx_Reseeded << "  " << fAbsCy_Reseeded << "  " << fFitpT_Reseeded << std::endl;
 
+  fXY_domain1 = getEnterXYPairs(fAbsCx_Reseeded,fAbsCy_Reseeded,fFitR_Reseeded,53).first;
+  fXY_domain2 = getEnterXYPairs(fAbsCx_Reseeded,fAbsCy_Reseeded,fFitR_Reseeded,53).second;
+  fEnterX_domain1 = fXY_domain1(0);
+  fEnterY_domain1 = fXY_domain1(1);
+  fEnterX_domain2 = fXY_domain2(0);
+  fEnterY_domain2 = fXY_domain2(1);
+
+  TVector3 radVec_domain1 = fXY_domain1-TVector3(fAbsCx_Reseeded,fAbsCy_Reseeded,0);
+  TVector3 radVec_domain2 = fXY_domain2-TVector3(fAbsCx_Reseeded,fAbsCy_Reseeded,0);
+  radVec_domain1.SetMag(fFitpT_Reseeded);
+  radVec_domain2.SetMag(fFitpT_Reseeded);
+  fPxPy_domain1 = TVector3(0,0,-1).Cross(radVec_domain1);
+  fPxPy_domain2 = TVector3(0,0, 1).Cross(radVec_domain2);
+
+  fEnterPx_domain1 = fPxPy_domain1(0);
+  fEnterPy_domain1 = fPxPy_domain1(1);
+  fEnterPx_domain2 = fPxPy_domain2(0);
+  fEnterPy_domain2 = fPxPy_domain2(1);
+
+  std::cout << "Domain 1 Enter: " << fEnterX_domain1 << "  " << fEnterY_domain1 << std::endl;
+  std::cout << "Domain 2 Enter: " << fEnterX_domain2 << "  " << fEnterY_domain2 << std::endl;
 }
 
 void IHoughTransform::PrintMCStatus(){
@@ -1074,6 +1097,34 @@ void IHoughTransform::DrawEvent(TCanvas* canvas){
   POCAgr->SetMarkerSize(1);
   POCAgr->SetMarkerColor(40); // Inner Hit - Green
   POCAgr->Draw("P");  
+
+  TGraph *ptEnterXY_domain1 = new TGraph(1, &fEnterX_domain1, &fEnterY_domain1);
+  ptEnterXY_domain1->SetTitle("EnterXY_domain1");
+  ptEnterXY_domain1->SetMarkerStyle(20);
+  ptEnterXY_domain1->SetMarkerSize(1);
+  ptEnterXY_domain1->SetMarkerColor(30);
+  ptEnterXY_domain1->Draw("P");        
+
+  TGraph *ptEnterXY_domain2 = new TGraph(1, &fEnterX_domain2, &fEnterY_domain2);
+  ptEnterXY_domain2->SetTitle("EnterXY_domain2");
+  ptEnterXY_domain2->SetMarkerStyle(20);
+  ptEnterXY_domain2->SetMarkerSize(1);
+  ptEnterXY_domain2->SetMarkerColor(20);
+  ptEnterXY_domain2->Draw("P");       
+
+  TGraph *ptCenterXY = new TGraph(1, &fAbsCx_Reseeded, &fAbsCy_Reseeded);
+  ptCenterXY->SetTitle("CenterXY");
+  ptCenterXY->SetMarkerStyle(20);
+  ptCenterXY->SetMarkerSize(1);
+  ptCenterXY->SetMarkerColor(1);
+  ptCenterXY->Draw("P");       
+
+  TEllipse *Circle_Reseeded = new TEllipse(fAbsCx_Reseeded,fAbsCy_Reseeded,fFitR_Reseeded,fFitR_Reseeded);
+  Circle_Reseeded->SetFillColor(0);
+  Circle_Reseeded->SetFillStyle(4000);
+  Circle_Reseeded->SetLineColor(1);
+  Circle_Reseeded->Draw();
+
 }
 
 std::vector<int> IHoughTransform::GetRecoWireId(){
@@ -1253,4 +1304,32 @@ void circleResidual(Int_t &, Double_t *, Double_t &f, Double_t *par, Int_t) {
     Double_t dr = par[2] - TMath::Sqrt(u*u+v*v);
     f += dr*dr;
   }
+}
+
+std::pair<TVector3, TVector3> getEnterXYPairs(Double_t x1,Double_t y1,Double_t r1, Double_t r2){
+  TVector3 XY_domain1;
+  TVector3 XY_domain2;
+  Double_t x,y,R,SqTerm,cross;
+  R=sqrt(pow(x1,2)+pow(y1,2));
+  SqTerm=2*(pow(r1,2)+pow(r2,2))/pow(R,2)-pow((pow(r1,2)-pow(r2,2)),2)/pow(R,4)-1;
+  if (SqTerm>0)      SqTerm = sqrt(SqTerm);
+  else if (SqTerm<0) return std::make_pair(XY_domain1,XY_domain2); // return Nothing
+
+  x=0.5*x1+0.5*(pow(r1,2)-pow(r2,2))/pow(R,2)*(-x1)+0.5*(-y1)*SqTerm;
+  y=0.5*y1+0.5*(pow(r1,2)-pow(r2,2))/pow(R,2)*(-y1)+0.5* (x1)*SqTerm;
+
+  std::cout << x << "  "<< y << std::endl;
+  cross = x*y1-y*x1;
+  if (cross<=0)     XY_domain1=TVector3(x,y,0.);
+  else if (cross>0) XY_domain2=TVector3(x,y,0.);
+
+  x=0.5*x1+0.5*(pow(r1,2)-pow(r2,2))/pow(R,2)*(-x1)-0.5*(-y1)*SqTerm;
+  y=0.5*y1+0.5*(pow(r1,2)-pow(r2,2))/pow(R,2)*(-y1)-0.5* (x1)*SqTerm;
+  cross = x*y1-y*x1;
+
+  std::cout << x << "  "<< y << std::endl;
+  if (cross<=0)     XY_domain1=TVector3(x,y,0.);
+  else if (cross>0) XY_domain2=TVector3(x,y,0.);
+
+  return std::make_pair(XY_domain1,XY_domain2);
 }

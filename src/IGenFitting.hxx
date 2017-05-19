@@ -49,6 +49,8 @@ public:
     fFieldManager = field;
   }
 
+  //TVector3 SmearSeed(TVector3 seed, Double_t smear);
+
   void LoadMCHits(COMET::IHandle<COMET::IHitSelection> hitHandle, COMET::IHandle<COMET::IG4TrajectoryContainer> trajectories,COMET::IHandle<COMET::IG4HitContainer> cdcHits){
     ITracking::LoadMCHits(hitHandle, trajectories, cdcHits);
   }  
@@ -58,13 +60,15 @@ public:
   void AddEvent(genfit::EventDisplay* display) {  display->addEvent(fitTrack); } 
   
   int DoFit();
+  int DoFitWithIteration(IHoughTransform* hough);
+
   double GetFittedMom() { return fpFit; }
   double GetChi2() { return fChi2; }
   int GetNdf()  { return fNdf;  }
   double GetChi2Ndf() { return fChi2Ndf; }
   double GetInitialMom() { return sqrt(pow(fGenTrPx,2)+pow(fGenTrPy,2)+pow(fGenTrPz,2)); }
   double GetCDCEntranceMom() { return sqrt(pow(fCDCEnterPx,2)+pow(fCDCEnterPy,2)+pow(fCDCEnterPz,2)); }
-  
+
 
 
 private:
@@ -89,6 +93,14 @@ private:
   Double_t fSigmaD;        /// position resolution  
   Double_t fSigmaWP;        /// Wire Position resolution
   Bool_t   fSaveHistogram; /// Flage to save Hitogram
+
+  // Longitudinal Iteration variables
+  Double_t fzIni;
+  Double_t fzFin;
+  Double_t fzBin;
+  Double_t fPzIni;
+  Double_t fPzFin;
+  Double_t fPzBin;
 
   genfit::Track* fitTrack;
   TGeoManager*   fGeoManager;

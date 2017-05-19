@@ -34,7 +34,7 @@ public:
     fFileMode("recreate"), 
     fOutputDir("../anal"),
 
-    fEventsNumForAnaly(100),
+    fEventsNumForAnaly(1000),
     fCoincidenceCount(0),
     fSingleTurnCount(0),
     fMultiTurnCount(0),
@@ -77,6 +77,20 @@ public:
     fTrdata->Branch("fpT_HT", &fpT_HT, "fpT_HT/D");
     fTrdata->Branch("fpT_Reseeded", &fpT_Reseeded, "fpT_Reseeded/D");
     fTrdata->Branch("fpT_Truth",&fpT_Truth, "fpT_Truth/D");
+
+    // for Testing purpose
+    fTrdata->Branch("fCDCEnterX", &fCDCEnterX, "fCDCEnterX/D");
+    fTrdata->Branch("fCDCEnterY", &fCDCEnterY, "fCDCEnterY/D");
+    fTrdata->Branch("fCDCEnterZ", &fCDCEnterZ, "fCDCEnterZ/D");
+    fTrdata->Branch("fCDCEnterPx", &fCDCEnterPx, "fCDCEnterPx/D");
+    fTrdata->Branch("fCDCEnterPy", &fCDCEnterPy, "fCDCEnterPy/D");
+    fTrdata->Branch("fCDCEnterPz", &fCDCEnterPz, "fCDCEnterPz/D");
+    fTrdata->Branch("fFitEnterX", &fFitEnterX, "fFitEnterX/D");
+    fTrdata->Branch("fFitEnterY", &fFitEnterY, "fFitEnterY/D");
+    fTrdata->Branch("fFitEnterZ", &fFitEnterZ, "fFitEnterZ/D");
+    fTrdata->Branch("fFitEnterPx", &fFitEnterPx, "fFitEnterPx/D");
+    fTrdata->Branch("fFitEnterPy", &fFitEnterPy, "fFitEnterPy/D");
+    fTrdata->Branch("fFitEnterPz", &fFitEnterPz, "fFitEnterPz/D");
   }
   
   bool operator () (COMET::ICOMETEvent& event) {
@@ -139,16 +153,39 @@ public:
       HoughTransform->RecognizeHits();
       HoughTransform->TuneRadiusWithPOCAs();
 
+      // Extract Transverse Position & Momentum ////////////////////////////
       fpT_HT       = HoughTransform->GetpT_HT();
       fpT_Truth    = HoughTransform->GetpT_Truth();
       fpT_Reseeded = HoughTransform->GetpT_Reseeded();
+      TVector3 fCDCEnterPos = HoughTransform->GetEnterPos_Truth();
+      TVector3 fCDCEnterMom = HoughTransform->GetEnterMom_Truth();
+      fCDCEnterX  = fCDCEnterPos(0);
+      fCDCEnterY  = fCDCEnterPos(1);
+      fCDCEnterZ  = fCDCEnterPos(2);
+      fCDCEnterPx = fCDCEnterMom(0);
+      fCDCEnterPy = fCDCEnterMom(1);
+      fCDCEnterPz = fCDCEnterMom(2);
 
+      TVector3 fFitEnterPos = HoughTransform->GetEnterXYPair_Reseeded().second;
+      TVector3 fFitEnterMom = HoughTransform->GetEnterPxPyPair_Reseeded().second;
+      if(!COMET::IGeomInfo::DetectorSolenoid().GetDetPositionInGlobalCoordinate(fFitEnterPos, fFitEnterPos)){std::cout << "Coordinate change fails (Local to Master)" << std::endl; return true;}
+      fFitEnterX  = fFitEnterPos(0);
+      fFitEnterY  = fFitEnterPos(1);
+
+      //fFitEnterZ  = fFitEnterPos(2);
+      fFitEnterPz = -fFitEnterMom(0);
+      fFitEnterPy = fFitEnterMom(1);
+      //fFitEnterPx = fFitEnterMom(2);
+      //////////////////////////////////////////////////////////////////////
+
+      // Extract Track Cut /////////////////////////////////////////////////
       int nRecoHit          =HoughTransform->GetNumberOfRecognizedHits();
       bool RecoCL3          =HoughTransform->GetCL3();     
       int Reco2DCharge      =HoughTransform->Get2DCharge();
       int RecoMaxWireLayerId=HoughTransform->GetMaxWireLayerId();    
       int MCTurnNumber      =HoughTransform->GetTurnNumber();
-  
+      //////////////////////////////////////////////////////////////////////
+
       HoughTransform->PrintResults();
 
       if (fSaveHoughTransform){
@@ -249,6 +286,19 @@ private:
   Double_t fpT_Reseeded;
   Double_t fpT_Truth;
 
+  // For testing purpose
+  Double_t fCDCEnterX;
+  Double_t fCDCEnterY;
+  Double_t fCDCEnterZ;
+  Double_t fCDCEnterPx;
+  Double_t fCDCEnterPy;
+  Double_t fCDCEnterPz;
+  Double_t fFitEnterX;
+  Double_t fFitEnterY;
+  Double_t fFitEnterZ;
+  Double_t fFitEnterPx;
+  Double_t fFitEnterPy;
+  Double_t fFitEnterPz;
 };
 
 int main(int argc, char **argv) {
