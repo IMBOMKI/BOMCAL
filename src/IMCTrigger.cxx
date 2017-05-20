@@ -144,8 +144,6 @@ void IMCTrigger::MakeTimeCluster(int Module){
       }
   }  
 
-  
-
   if (TimeOrdering.size()>1){
     for (int i=0 ; i<TimeOrdering.size(); i++){
       if ((i+1<TimeOrdering.size()) && (TimeOrdering.at(i+1).second - TimeOrdering.at(i).second < 10 )){	

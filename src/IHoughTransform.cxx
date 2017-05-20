@@ -52,7 +52,7 @@ IHoughTransform::IHoughTransform(const char* name = "IHoughTransform", const cha
    fnPt(300.0),
    fRhoMax(0.02),
    fRhoMin(-0.02),
-   fBandWidth(8),
+   fBandWidth(6),
    fRadUncertainty(5), // <- Disk Radius
    //fRadUncertainty(6),
    fRef(std::make_pair(0,0)),
@@ -1004,7 +1004,7 @@ void IHoughTransform::DrawEvent(TCanvas* canvas){
   
   
   // Hough Circles (Even, Odd)
-  
+  /*
   TEllipse *circle_even = new TEllipse(fAbsCx_even,fAbsCy_even,fRad_even,fRad_even);
   TEllipse *circle_odd = new TEllipse(fAbsCx_odd,fAbsCy_odd,fRad_odd,fRad_odd);
   TEllipse *center_even = new TEllipse(fAbsCx_even,fAbsCy_even,0.1,0.1);
@@ -1053,8 +1053,11 @@ void IHoughTransform::DrawEvent(TCanvas* canvas){
   grRecoOddhits->SetMarkerSize(1);
   grRecoOddhits->SetMarkerColor(46); // Reco_odd - right red
   grRecoOddhits->Draw("P");      
+  */
+
 
   // Side Hits
+  /*
   double fOuterWireEnd0X[1000];
   double fOuterWireEnd0Y[1000];  
   int    fnOuterHit=0;
@@ -1090,14 +1093,17 @@ void IHoughTransform::DrawEvent(TCanvas* canvas){
   grInnerHits->SetMarkerSize(1);
   grInnerHits->SetMarkerColor(8); // Inner Hit - Green
   grInnerHits->Draw("P");        
+  */
+
 
   // POCAs
   POCAgr->SetTitle("POCAs");
   POCAgr->SetMarkerStyle(20);
   POCAgr->SetMarkerSize(1);
-  POCAgr->SetMarkerColor(40); // Inner Hit - Green
+  POCAgr->SetMarkerColor(37); 
   POCAgr->Draw("P");  
 
+  /*
   TGraph *ptEnterXY_domain1 = new TGraph(1, &fEnterX_domain1, &fEnterY_domain1);
   ptEnterXY_domain1->SetTitle("EnterXY_domain1");
   ptEnterXY_domain1->SetMarkerStyle(20);
@@ -1118,13 +1124,14 @@ void IHoughTransform::DrawEvent(TCanvas* canvas){
   ptCenterXY->SetMarkerSize(1);
   ptCenterXY->SetMarkerColor(1);
   ptCenterXY->Draw("P");       
+  */
 
   TEllipse *Circle_Reseeded = new TEllipse(fAbsCx_Reseeded,fAbsCy_Reseeded,fFitR_Reseeded,fFitR_Reseeded);
   Circle_Reseeded->SetFillColor(0);
   Circle_Reseeded->SetFillStyle(4000);
-  Circle_Reseeded->SetLineColor(1);
+  Circle_Reseeded->SetLineColor(12);
   Circle_Reseeded->Draw();
-
+  
 }
 
 std::vector<int> IHoughTransform::GetRecoWireId(){

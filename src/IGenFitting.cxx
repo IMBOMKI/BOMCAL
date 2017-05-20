@@ -54,11 +54,6 @@
 
 
 /// For translating COMET Field into genfit::AbsBField
-
-//TVector3 GetPOCAofTwoWires(TVector3 wireEnd0_lo, TVector3 wireEnd1_lo, TVector3 wireEnd0_up, TVector3 wireEnd1_up);
-
-//TVector3 GetVectorCrossingCenter(TVector3 wireEnd0_lo, TVector3 wireEnd1_lo, TVector3 wireEnd0_up, TVector3 wireEnd1_up, TVector3 POCA);
-
 class GFGeoField : public genfit::AbsBField{
 public:
   TVector3 get(const TVector3& pos) const{
@@ -85,7 +80,7 @@ IGenFitting::IGenFitting(const char* name, const char* title)
    //,fMethod("KalmanFitter") // "KalmanFitter -> Good for Spacepoint Measurement
   ,fMethod("DAF")       // DAF -> Work for WireMeasurement
   ,fPID(11)
-  ,fMinIterations(10)
+  ,fMinIterations(30)
   ,fMaxIterations(60)
    //,fMinHitsInTrack(10)
    //,fMinNDF(4)
@@ -96,26 +91,18 @@ IGenFitting::IGenFitting(const char* name, const char* title)
   ,fGeometry("/home/bomki/ICEDUST/BOMKI_analysis/v999/utilities/Geometry/COMETGeometry_Full.root")
   ,fUseExtFieldFile(false)
   ,fFieldMap("/home/bomki/ICEDUST/local_storage/fieldmaps/150630_defaultFieldmap/load_fieldmaps.mac")
+  ,fUseTransverseSeed(true)
   ,fUseMCTruth(false)
   ,fSmearing(true)
+   //,fSigmaD(0.02)
   ,fSigmaD(0.02)
-   //,fSigmaD(0.005)
   ,fSigmaWP(0.001)
   ,fSaveHistogram(true)
-   
-  ,fzIni(590)
-  ,fzFin(690)
-  ,fzBin(10)
-  ,fPzIni(-60)
-  ,fPzFin(60)
-  ,fPzBin(12)
 {
-  //if (fSaveTree) fTree = new TTree("gftree", "GenFit tree");
 }
 
 IGenFitting::~IGenFitting()
 {
-  //if (fSaveTree) delete fTree;
 }
 
 int IGenFitting::Init(){
@@ -174,25 +161,7 @@ void IGenFitting::LoadHitsAfterHT(COMET::IHandle<COMET::IHitSelection> hitHandle
   }
 }  
 
-int IGenFitting::DoFitWithIteration(IHoughTransform* hough){
-
-  genfit::AbsTrackRep *rep = new genfit::RKTrackRep(fPID);
-  
-  // Transverse Pos&Mom seed
-  TVector3 fFitEnterPos = HoughTransform->GetEnterXYPair_Reseeded().second;
-  TVector3 fFitEnterMom = HoughTransform->GetEnterPxPyPair_Reseeded().second;
-  if(!COMET::IGeomInfo::DetectorSolenoid().GetDetPositionInGlobalCoordinate(fFitEnterPos, fFitEnterPos)){std::cout << "Coordinate change fails (Local to Master)" << std::endl; return true;}
-  fFitEnterX  = fFitEnterPos(0);
-  fFitEnterY  = fFitEnterPos(1);
-  fFitEnterPz = -fFitEnterMom(0);
-  fFitEnterPy = fFitEnterMom(1);
-
-
-
-}
-
-
-int IGenFitting::DoFit(){
+int IGenFitting::DoFit(IHoughTransform* hough){
 
   gRandom->SetSeed(1);
   
@@ -218,15 +187,29 @@ int IGenFitting::DoFit(){
   //TVector3 momInit = TVector3(fGenTrPx,fGenTrPy,fGenTrPz); // MeV unit
 
   // 3. True Entering value  
-  TVector3 posInit = TVector3(fCDCEnterX,fCDCEnterY,fCDCEnterZ);     // cm unit
-  TVector3 momInit = TVector3(fCDCEnterPx,fCDCEnterPy,fCDCEnterPz); // MeV unit
+  posInit = TVector3(fCDCEnterX,fCDCEnterY,fCDCEnterZ);     // cm unit
+  momInit = TVector3(fCDCEnterPx,fCDCEnterPy,fCDCEnterPz); // MeV unit
 
   // (Optional) Smearing TVector3
-  TVector3 posSmear(gRandom->Uniform(-50,50),gRandom->Uniform(-50,50),gRandom->Uniform(-50,50));
-  TVector3 momSmear(gRandom->Uniform(-50,50),gRandom->Uniform(-50,50),gRandom->Uniform(-50,50));  
-  //posInit += posSmear;
-  //momInit += momSmear;
+  /*
+  TVector3 posSmear(0.,gRandom->Uniform(-3,3),gRandom->Uniform(-3,3));
+  TVector3 momSmear(0.,gRandom->Uniform(-8,8),gRandom->Uniform(-8,8));  
+  posInit += posSmear;
+  momInit += momSmear;
+  */
 
+  if (fUseTransverseSeed==1){
+    TVector3 fFitEnterPos = hough->GetEnterXYPair_Reseeded().second;
+    TVector3 fFitEnterMom = hough->GetEnterPxPyPair_Reseeded().second;
+    if(!COMET::IGeomInfo::DetectorSolenoid().GetDetPositionInGlobalCoordinate(fFitEnterPos, fFitEnterPos)){std::cout << "Coordinate change fails (Local to Master)" << std::endl; return true;}
+    Double_t fFitEnterY  = fFitEnterPos(1);
+    Double_t fFitEnterZ  = fFitEnterPos(2);
+    Double_t fFitEnterPz = -fFitEnterMom(0);
+    Double_t fFitEnterPy = fFitEnterMom(1);
+
+    posInit = TVector3(640,fFitEnterY,fFitEnterZ);
+    momInit = TVector3(0  ,fFitEnterPy,fFitEnterPz);
+  }
   /// Temporal solution to convert the unit
   momInit *= 0.001; /// Convert from MeV to GeV
 
@@ -238,6 +221,7 @@ int IGenFitting::DoFit(){
   /// Position resolutions
   double resPos[3] = {0,0,0};
   resPos[0] = resPos[1] = resPos[2] = 0.1;  /// 1 mm
+  //resPos[0] = resPos[1] = resPos[2] = 0.01;  /// 0.1 mm
   for (int ii=0; ii<3; ii++) { covMInit(ii, ii) = resPos[ii]*resPos[ii]; }
 
   bool localCoord=false;
@@ -245,9 +229,12 @@ int IGenFitting::DoFit(){
   //set covariant matrix from Momentum and angle resolution
   double sigma_p0     = 0.001; ///   1 MeV
   double sigma_angle0 = 0.1;   /// 100 mrad
+  //double sigma_p0     = 0.0001; ///   0.1 MeV
+  //double sigma_angle0 = 0.01;   /// 10 mrad
 
   TVector3 dirP    = momInit.Unit();
-  TVector3 zaxis   = localCoord ? TVector3(0,0,1) : TVector3(1,0,0);
+  //TVector3 zaxis   = localCoord ? TVector3(0,0,1) : TVector3(1,0,0);
+  TVector3 zaxis   = TVector3(1,0,0);
   TVector3 v_axis  = dirP.Cross(zaxis).Unit();
   TVector3 u_axis  = dirP.Cross(v_axis).Unit();
   TVector3 axis[3] = {dirP, v_axis, u_axis};
@@ -380,6 +367,7 @@ int IGenFitting::DoFit(){
     return 0;
   }
     
+  /*
   if (fitTrack->getFitStatus(rep)->getChi2()<=0 ||
       (fitTrack->getFitStatus(rep)->getNdf()-2*nVirtualPlanes)<fMinNDF) {
     COMETNamedInfo("IGenFitter", "Fit result might be wrong... (chi2,ndf) = (" << 
@@ -390,7 +378,7 @@ int IGenFitting::DoFit(){
     //delete fitTrack;
     return 0;
   }
-  
+  */
 
   genfit::TrackPoint* tp = fitTrack->getPointWithMeasurementAndFitterInfo(0, rep);
   genfit::KalmanFittedStateOnPlane kfsop(*(static_cast<genfit::KalmanFitterInfo*>(tp->getFitterInfo(rep))->getBackwardUpdate()));
@@ -401,6 +389,13 @@ int IGenFitting::DoFit(){
   fChi2 = fitTrack->getFitStatus(rep)->getChi2();
   fNdf = fitTrack->getFitStatus(rep)->getNdf();  
   fChi2Ndf = fChi2/fNdf;
+
+  if (fChi2Ndf<1 || fChi2Ndf>5) {
+    std::cout << "Fit result might be wrong..." << std::endl;
+    delete kalman;
+    return 0;
+  }
+
 
   delete kalman;
   //delete fitTrack;
@@ -424,6 +419,7 @@ int IGenFitting::DoFit(){
     genfit::MeasuredStateOnPlane mop;
 
     if (i_hit==0){
+    //if (i_hit==nTotalHits-1){
       mop = fitTrack->getFittedState(i_hit,rep);
       mop.getPosMomCov(posOnPlane,momOnPlane,covOnPlane);
       fpFit  = momOnPlane.Mag();
@@ -460,38 +456,3 @@ int IGenFitting::DoFit(){
   return 1;
 }
 
-/*
-TVector3 GetPOCAofTwoWires(TVector3 wireEnd0_lo, TVector3 wireEnd1_lo, TVector3 wireEnd0_up, TVector3 wireEnd1_up){
-  TVector3 u = wireEnd1_lo-wireEnd0_lo;
-  TVector3 v = wireEnd1_up-wireEnd0_up;
-  TVector3 w = wireEnd0_lo-wireEnd0_up;
-  double a,b,c,d,e,s,t;
-  a = u * u; 
-  b = u * v;
-  c = v * v;
-  d = u * w;
-  e = v * w;
-  
-  s = (b*e-c*d)/(a*c-b*b);
-  t = (a*e-b*d)/(a*c-b*b);
-
-  TVector3 pC=wireEnd0_lo + s * u;
-  TVector3 qC=wireEnd0_up + t * v;
-  
-  return (pC+qC)*0.5;
-}
-
-TVector3 GetVectorCrossingCenter(TVector3 wireEnd0_lo, TVector3 wireEnd1_lo, TVector3 wireEnd0_up, TVector3 wireEnd1_up, TVector3 POCA){
-  TVector3 u = wireEnd1_lo-wireEnd0_lo;
-  TVector3 v = wireEnd1_up-wireEnd0_up;
-  
-  double u_t   = (POCA(0)-wireEnd0_lo(0))/(wireEnd1_lo(0)-wireEnd0_lo(0));
-  double v_t   = (POCA(0)-wireEnd0_up(0))/(wireEnd1_up(0)-wireEnd0_up(0));
-
-  TVector3 c1 = wireEnd0_lo + u_t*u;
-  TVector3 c2 = wireEnd0_up + v_t*v;
-
-  //std::cout << c1(0)-c2(0) << "  " << c1(1)-c2(1) << "  " << c1(2)-c2(2) << std::endl;
-  return c2-c1;
-}
-*/

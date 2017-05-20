@@ -59,8 +59,7 @@ public:
   void LoadHitsAfterHT(COMET::IHandle<COMET::IHitSelection> hitHandle, IHoughTransform* hough);
   void AddEvent(genfit::EventDisplay* display) {  display->addEvent(fitTrack); } 
   
-  int DoFit();
-  int DoFitWithIteration(IHoughTransform* hough);
+  int DoFit(IHoughTransform *hough);
 
   double GetFittedMom() { return fpFit; }
   double GetChi2() { return fChi2; }
@@ -93,15 +92,10 @@ private:
   Double_t fSigmaD;        /// position resolution  
   Double_t fSigmaWP;        /// Wire Position resolution
   Bool_t   fSaveHistogram; /// Flage to save Hitogram
+  Bool_t   fUseTransverseSeed; /// flag to use field maps in external file  
 
-  // Longitudinal Iteration variables
-  Double_t fzIni;
-  Double_t fzFin;
-  Double_t fzBin;
-  Double_t fPzIni;
-  Double_t fPzFin;
-  Double_t fPzBin;
-
+  TVector3 posInit;
+  TVector3 momInit;
   genfit::Track* fitTrack;
   TGeoManager*   fGeoManager;
   COMET::IFieldManager* fFieldManager;
@@ -110,6 +104,5 @@ private:
   int    fNdf;
   double fChi2Ndf;
 
-  TVector3 fEntrancePosFit;
 };
 #endif

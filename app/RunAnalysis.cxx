@@ -27,6 +27,9 @@
 #include <TGeoGlobalMagField.h>
 #include <TGeoManager.h>
 
+#include "time.h"
+#include "sys/time.h"
+
 class TMyEventLoop: public COMET::ICOMETEventLoopFunction {
 public:
   TMyEventLoop(): 
@@ -38,7 +41,8 @@ public:
     fCoincidenceCount(0),
     fSingleTurnCount(0),
     fMultiTurnCount(0),
-    fSaveHoughTransform(0)
+    fSaveHoughTransform(0),
+    fMaxGenFitTry(5)
   {}
   virtual ~TMyEventLoop() {}
  
@@ -59,7 +63,6 @@ public:
     std::cout << "Initialize" << std::endl;
     display = genfit::EventDisplay::getInstance();
 
-
     strcpy(fullName, fOutputDir.c_str());
     strcat(fullName, "/");
     strcat(fullName, fFileName.c_str());
@@ -68,6 +71,15 @@ public:
     fTrdata = new TTree("trdata", "Tree Data");
         
     fTrdata->Branch("eventId", &eventId, "eventId/I");
+
+    fTrdata->Branch("fTriggerActivated", &fTriggerActivated, "fTriggerActivated/O");
+    fTrdata->Branch("fnRecoHit", &fnRecoHit, "fnRecoHit/I");
+    fTrdata->Branch("fRecoCL3", &fRecoCL3, "fRecoCL3/O");
+    fTrdata->Branch("fReco2DCharge", &fReco2DCharge, "fReco2DCharge/I");
+    fTrdata->Branch("fRecoMaxWireLayerId", &fRecoMaxWireLayerId, "fRecoMaxWireLayerId/I");
+    fTrdata->Branch("fMCTurnNumber", &fMCTurnNumber, "fMCTurnNumber/I");
+
+    fTrdata->Branch("fFitSuccess", &fFitSuccess, "fFitSuccess/O");
     fTrdata->Branch("fpFit", &fpFit, "fpFit/D");
     fTrdata->Branch("fChi2", &fChi2, "fChi2/D");
     fTrdata->Branch("fNdf", &fNdf, "fNdf/I");
@@ -79,22 +91,51 @@ public:
     fTrdata->Branch("fpT_Truth",&fpT_Truth, "fpT_Truth/D");
 
     // for Testing purpose
+
+    // MC Initial Value
     fTrdata->Branch("fCDCEnterX", &fCDCEnterX, "fCDCEnterX/D");
     fTrdata->Branch("fCDCEnterY", &fCDCEnterY, "fCDCEnterY/D");
     fTrdata->Branch("fCDCEnterZ", &fCDCEnterZ, "fCDCEnterZ/D");
     fTrdata->Branch("fCDCEnterPx", &fCDCEnterPx, "fCDCEnterPx/D");
     fTrdata->Branch("fCDCEnterPy", &fCDCEnterPy, "fCDCEnterPy/D");
     fTrdata->Branch("fCDCEnterPz", &fCDCEnterPz, "fCDCEnterPz/D");
-    fTrdata->Branch("fFitEnterX", &fFitEnterX, "fFitEnterX/D");
+
+    // Hough Transform Transverse Mom & Pos Initial Seed
     fTrdata->Branch("fFitEnterY", &fFitEnterY, "fFitEnterY/D");
     fTrdata->Branch("fFitEnterZ", &fFitEnterZ, "fFitEnterZ/D");
-    fTrdata->Branch("fFitEnterPx", &fFitEnterPx, "fFitEnterPx/D");
     fTrdata->Branch("fFitEnterPy", &fFitEnterPy, "fFitEnterPy/D");
     fTrdata->Branch("fFitEnterPz", &fFitEnterPz, "fFitEnterPz/D");
+
+    fTrdata->Branch("fAnalysisTime_HT", &fAnalysisTime_HT, "fAnalysisTime_HT/D");
+    fTrdata->Branch("fAnalysisTime_GENFIT", &fAnalysisTime_GENFIT, "fAnalysisTime_GENFIT/D");
   }
   
   bool operator () (COMET::ICOMETEvent& event) {
     
+    // Nullifying ////////////////////////
+    fTriggerActivated=0;
+    fnRecoHit=0;       
+    fRecoCL3=0;        
+    fReco2DCharge=0;
+    fRecoMaxWireLayerId=0;
+    fMCTurnNumber=0;    
+    fFitSuccess=0;
+    fpFit=0;
+    fChi2=0;
+    fNdf=0;
+    fChi2Ndf=0;
+    fpEnter=0;
+    fpIni=0;
+    fpT_HT=0;
+    fpT_Reseeded=0;
+    fpT_Truth=0;
+
+    fAnalysisTime_HT=0;
+    fAnalysisTime_GENFIT=0;
+    struct timespec HTstart, HTend;
+    struct timespec GENFITstart, GENFITend;
+    /////////////////////////////////////
+
     eventId = event.GetEventId();
     if (eventId>fEventsNumForAnaly) return true;
         
@@ -102,11 +143,7 @@ public:
     std::cout << "*Event Id: " << eventId << std::endl;
     std::cout << std::endl;
     
-//if (!fGeoManager)   fGeoManager   = COMET::IOADatabase::Get().Geometry();
-//if (!fFieldManager) fFieldManager = COMET::IFieldManager::Import(); // Open current field maps
-
     COMET::IOADatabase::Get().Geometry();
-
     COMET::IHandle<COMET::IG4HitContainer> CTHHits = event.Get<COMET::IG4HitContainer>("truth/g4Hits/CTH");
     COMET::IHandle<COMET::IG4HitContainer> CDCHits = event.Get<COMET::IG4HitContainer>("truth/g4Hits/CDC");
     COMET::IHandle<COMET::IG4TrajectoryContainer> Trajectories = event.Get<COMET::IG4TrajectoryContainer>("truth/G4Trajectories");
@@ -121,12 +158,12 @@ public:
     //////              Trigger                  ///////               
     ////////////////////////////////////////////////////
 
-    bool FourFoldCoincidence;
+    //bool FourFoldCoincidence;
     std::vector < std::pair < std::vector< int >, std::vector< int> > > PairCandidates;   
     
     MCTrigger->MakeCTHMap(CTHHits, Trajectories);
     MCTrigger->Process();
-    FourFoldCoincidence = MCTrigger->GetFourFoldCoincidence();
+    fTriggerActivated = MCTrigger->GetFourFoldCoincidence();
     PairCandidates = MCTrigger->GetPairCandidates();
     MCTrigger->PrintResults();
     
@@ -140,13 +177,16 @@ public:
     //                 //
     /////////////////////
 
-    TCanvas *c_hits;
-    if (fSaveHoughTransform) c_hits = new TCanvas("c_hits", "c_hits", 1000,1000);  
-
     HoughTransform->LoadMCHits(CDCHits_DetResp, Trajectories, CDCHits);
     HoughTransform->PrintMCStatus();    
 
-    if (FourFoldCoincidence==1 && HoughTransform->PreTrackCut()==1) {     
+    if (fTriggerActivated==1 && HoughTransform->PreTrackCut()==1) {     
+
+      // Start Time measureing && Event Drawing //////////////////////////////////////
+      clock_gettime(CLOCK_MONOTONIC_RAW, &HTstart); 
+      TCanvas *c_hits;
+      if (fSaveHoughTransform) c_hits = new TCanvas("c_hits", "c_hits", 1000,1000);  
+      ////////////////////////////////////////////////////////////////////////////////
 
       HoughTransform->ImportTriggerInfo(PairCandidates);
       HoughTransform->Process();      
@@ -169,32 +209,34 @@ public:
       TVector3 fFitEnterPos = HoughTransform->GetEnterXYPair_Reseeded().second;
       TVector3 fFitEnterMom = HoughTransform->GetEnterPxPyPair_Reseeded().second;
       if(!COMET::IGeomInfo::DetectorSolenoid().GetDetPositionInGlobalCoordinate(fFitEnterPos, fFitEnterPos)){std::cout << "Coordinate change fails (Local to Master)" << std::endl; return true;}
-      fFitEnterX  = fFitEnterPos(0);
+      //fFitEnterX  = fFitEnterPos(0);
       fFitEnterY  = fFitEnterPos(1);
-
-      //fFitEnterZ  = fFitEnterPos(2);
+      fFitEnterZ  = fFitEnterPos(2);
       fFitEnterPz = -fFitEnterMom(0);
       fFitEnterPy = fFitEnterMom(1);
       //fFitEnterPx = fFitEnterMom(2);
       //////////////////////////////////////////////////////////////////////
 
       // Extract Track Cut /////////////////////////////////////////////////
-      int nRecoHit          =HoughTransform->GetNumberOfRecognizedHits();
-      bool RecoCL3          =HoughTransform->GetCL3();     
-      int Reco2DCharge      =HoughTransform->Get2DCharge();
-      int RecoMaxWireLayerId=HoughTransform->GetMaxWireLayerId();    
-      int MCTurnNumber      =HoughTransform->GetTurnNumber();
+      fnRecoHit          =HoughTransform->GetNumberOfRecognizedHits();
+      fRecoCL3          =HoughTransform->GetCL3();     
+      fReco2DCharge      =HoughTransform->Get2DCharge();
+      fRecoMaxWireLayerId=HoughTransform->GetMaxWireLayerId();    
+      fMCTurnNumber      =HoughTransform->GetTurnNumber();
       //////////////////////////////////////////////////////////////////////
+
 
       HoughTransform->PrintResults();
 
       if (fSaveHoughTransform){
 	HoughTransform->DrawEvent(c_hits);
 	c_hits->SaveAs("./EventId"+TString(Form ("%d", eventId))+".png");
+	c_hits->Close(); 
+	delete c_hits;
       }
-
-      std::cout << "Turn Number is: " << MCTurnNumber << std::endl;
       fCoincidenceCount++;
+      clock_gettime(CLOCK_MONOTONIC_RAW, &HTend); 
+      fAnalysisTime_HT = (HTend.tv_sec - HTstart.tv_sec)*1000000 + (HTend.tv_nsec - HTstart.tv_nsec) / 1000; 
 
       //////////////// 
       //            //
@@ -202,17 +244,27 @@ public:
       //            //
       ////////////////
 
-      if (RecoMaxWireLayerId>=4 && Reco2DCharge==-1 && RecoCL3==1 && nRecoHit>30 && MCTurnNumber==1){
+      // Single Turn
+      if (fRecoMaxWireLayerId>=4 && fReco2DCharge==-1 && fRecoCL3==1 && fnRecoHit>30 && fMCTurnNumber==1){
 	fSingleTurnCount++;		
-
 	GenFitting->Init();
 	GenFitting->LoadMCHits(CDCHits_DetResp, Trajectories, CDCHits);       
-	//GenFitting->ShuffleMCHits();
+	//GenFitting->ShuffleMCHits(); // This makes fitting suck...
 	GenFitting->LoadHitsAfterHT(CDCHits_DetResp, HoughTransform);
+	Int_t nTry=0;	
 	
-	if (!GenFitting->DoFit()) {
+	clock_gettime(CLOCK_MONOTONIC_RAW, &GENFITstart); 
+
+	if (!GenFitting->DoFit(HoughTransform)) {
+	  fFitSuccess=0;
+
+	  clock_gettime(CLOCK_MONOTONIC_RAW, &GENFITend); 
+	  fAnalysisTime_GENFIT = (GENFITend.tv_sec - GENFITstart.tv_sec)*1000000 + (GENFITend.tv_nsec - GENFITstart.tv_nsec) / 1000;
+
+	  fTrdata->Fill();
 	  return true;
 	}
+	fFitSuccess=1;	
 	GenFitting->AddEvent(display);
 	fpFit=GenFitting->GetFittedMom(); fpFit *= 1e3;
 	fChi2=GenFitting->GetChi2();
@@ -221,19 +273,22 @@ public:
 	fpIni   =GenFitting->GetInitialMom();
 	fpEnter =GenFitting->GetCDCEntranceMom();
 
-	fTrdata->Fill();	
+	clock_gettime(CLOCK_MONOTONIC_RAW, &GENFITend); 
+	fAnalysisTime_GENFIT = (GENFITend.tv_sec - GENFITstart.tv_sec)*1000000 + (GENFITend.tv_nsec - GENFITstart.tv_nsec) / 1000;
+
+	fTrdata->Fill();
+	return true;
       }   
-      else if (RecoMaxWireLayerId>=4 && Reco2DCharge==-1 && RecoCL3==1 && nRecoHit>30 && MCTurnNumber>1){
+
+      // Multi Turn
+      else if (fRecoMaxWireLayerId>=4 && fReco2DCharge==-1 && fRecoCL3==1 && fnRecoHit>30 && fMCTurnNumber>1){
 	fMultiTurnCount++;
+	fTrdata->Fill();
+	return true;
       }
     }
     
-    delete MCTrigger;
-    delete HoughTransform;
-    if (fSaveHoughTransform) {c_hits->Close(); delete c_hits;}
-
-    delete GenFitting;
-
+    fTrdata->Fill();
     return true;
   }
   
@@ -271,20 +326,32 @@ private:
 
   /*** GenFitting ***/
   genfit::EventDisplay* display;
+  Int_t fMaxGenFitTry;
   //TVector3 fFittedMom;
 
   /*** Branch Variables ***/
   Int_t    eventId;
+
+  Int_t    fTriggerActivated;
+  Int_t    fnRecoHit;       
+  Bool_t   fRecoCL3;        
+  Int_t    fReco2DCharge;
+  Int_t    fRecoMaxWireLayerId;
+  Int_t    fMCTurnNumber;
+
+  Bool_t   fFitSuccess;
   Double_t fpFit;
   Double_t fChi2;
   Int_t    fNdf;
   Double_t fChi2Ndf;
-
   Double_t fpEnter;
   Double_t fpIni;
   Double_t fpT_HT;
   Double_t fpT_Reseeded;
   Double_t fpT_Truth;
+
+  Double_t fAnalysisTime_HT;     // Time in mircosecond unit
+  Double_t fAnalysisTime_GENFIT;
 
   // For testing purpose
   Double_t fCDCEnterX;
