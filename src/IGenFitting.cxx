@@ -75,15 +75,25 @@ public:
 IGenFitting::IGenFitting(const char* name, const char* title)
   :ITracking(name, title)
   ,fUseBetheBloch(true)
+  ,fUseNoiseBetheBloch(true)
+  ,fUseNoiseCoulomb(true)
   ,fUseBrems(false)
+  ,fUseNoiseBrems(false)
+  ,fUseNoEffects(false)
+  ,fUseTransverseSeed(false)
+  ,fUseMCTruth(false)
+  ,fSmearing(true)
+   //,fSigmaD(0.02)
+  ,fSigmaD(0.02)
+  ,fSigmaWP(0.001)
    //,fMethod("KalmanFitterRefTrack")
    //,fMethod("KalmanFitter") // "KalmanFitter -> Good for Spacepoint Measurement
   ,fMethod("DAF")       // DAF -> Work for WireMeasurement
   ,fPID(11)
-  ,fMinIterations(30)
+  ,fMinIterations(10)
   ,fMaxIterations(60)
    //,fMinHitsInTrack(10)
-   //,fMinNDF(4)
+  ,fMinNDF(4)
    //,fMaxMomentum(250)
    //,fMinMomentum(50)
    //,fMaxMomDiff(20)
@@ -91,12 +101,6 @@ IGenFitting::IGenFitting(const char* name, const char* title)
   ,fGeometry("/home/bomki/ICEDUST/BOMKI_analysis/v999/utilities/Geometry/COMETGeometry_Full.root")
   ,fUseExtFieldFile(false)
   ,fFieldMap("/home/bomki/ICEDUST/local_storage/fieldmaps/150630_defaultFieldmap/load_fieldmaps.mac")
-  ,fUseTransverseSeed(true)
-  ,fUseMCTruth(false)
-  ,fSmearing(true)
-   //,fSigmaD(0.02)
-  ,fSigmaD(0.02)
-  ,fSigmaWP(0.001)
   ,fSaveHistogram(true)
 {
 }
@@ -115,7 +119,12 @@ int IGenFitting::Init(){
   COMET::IOADatabase::Get().Geometry();
   genfit::MaterialEffects* mateff = genfit::MaterialEffects::getInstance();
   mateff->setEnergyLossBetheBloch(fUseBetheBloch);
+  mateff->setNoiseBetheBloch(fUseNoiseBetheBloch);
+  mateff->setNoiseCoulomb(fUseNoiseCoulomb); 
   mateff->setEnergyLossBrems(fUseBrems);  
+  mateff->setNoiseBrems(fUseNoiseBrems);  
+  mateff->setNoEffects(fUseNoEffects);  
+
   genfit::MaterialEffects::getInstance()->init(new genfit::TGeoMaterialInterface());
 
   // Uniform Field Setup
@@ -157,6 +166,7 @@ void IGenFitting::LoadHitsAfterHT(COMET::IHandle<COMET::IHitSelection> hitHandle
     fWireEnd1Z[i] = COMET::IGeomInfo::Get().CDC().GetWireEnd1(wire).Z();
     fDriftDist[i] = driftDist.at(i);
     fDomain[i]      = domain.at(i);
+    fWireLayerId[i]=COMET::IGeomInfo::Get().CDC().GetLayer(wire);
     //std::cout << i << "   " << fWireEnd0X[i] << "   " << fWireEnd0Y[i] << "   " << fWireEnd0Z[i] << std::endl;
   }
 }  
@@ -165,16 +175,7 @@ int IGenFitting::DoFit(IHoughTransform* hough){
 
   gRandom->SetSeed(1);
   
-  //genfit::Track * tmpTrack(NULL);
-  //fFitTrack = tmpTrack;
-  //genfit::Track *fitTrack(NULL);
-
   genfit::AbsTrackRep *rep = new genfit::RKTrackRep(fPID);
-
-  TRandom rand;
-  Double_t momMag = 105;
-  Double_t px, py, pz;
-  rand.Sphere(px,py,pz,105);
 
   /// Set initial position and state
 
@@ -191,12 +192,11 @@ int IGenFitting::DoFit(IHoughTransform* hough){
   momInit = TVector3(fCDCEnterPx,fCDCEnterPy,fCDCEnterPz); // MeV unit
 
   // (Optional) Smearing TVector3
-  /*
-  TVector3 posSmear(0.,gRandom->Uniform(-3,3),gRandom->Uniform(-3,3));
-  TVector3 momSmear(0.,gRandom->Uniform(-8,8),gRandom->Uniform(-8,8));  
-  posInit += posSmear;
-  momInit += momSmear;
-  */
+  //TVector3 posSmear(gRandom->Gaus(0.3),gRandom->Gaus(0.02),gRandom->Gaus(0.02));
+  //TVector3 momSmear(gRandom->Gaus(0.1),gRandom->Gaus(0.1),gRandom->Gaus(0.1));  
+  //posInit += posSmear;
+  //momInit += momSmear;
+  
 
   if (fUseTransverseSeed==1){
     TVector3 fFitEnterPos = hough->GetEnterXYPair_Reseeded().second;
@@ -207,8 +207,10 @@ int IGenFitting::DoFit(IHoughTransform* hough){
     Double_t fFitEnterPz = -fFitEnterMom(0);
     Double_t fFitEnterPy = fFitEnterMom(1);
 
-    posInit = TVector3(640,fFitEnterY,fFitEnterZ);
-    momInit = TVector3(0  ,fFitEnterPy,fFitEnterPz);
+    //posInit = TVector3(640,fFitEnterY,fFitEnterZ);
+    //momInit = TVector3(0  ,fFitEnterPy,fFitEnterPz);
+    posInit = TVector3(fCDCEnterX,fFitEnterY,fFitEnterZ);
+    momInit = TVector3(fCDCEnterPx  ,fFitEnterPy,fFitEnterPz);
   }
   /// Temporal solution to convert the unit
   momInit *= 0.001; /// Convert from MeV to GeV
@@ -217,23 +219,19 @@ int IGenFitting::DoFit(IHoughTransform* hough){
                                ", momentum = (" << 1e3*momInit.x() << ", " << 1e3*momInit.y() << ". " << 1e3*momInit.z() << ") MeV" );
 
   genfit::MeasuredStateOnPlane stateInit(rep);
+
   TMatrixDSym covMInit(6);
   /// Position resolutions
-  double resPos[3] = {0,0,0};
-  resPos[0] = resPos[1] = resPos[2] = 0.1;  /// 1 mm
-  //resPos[0] = resPos[1] = resPos[2] = 0.01;  /// 0.1 mm
+  double resPos[3] = {0.1,0.1,0.1};
   for (int ii=0; ii<3; ii++) { covMInit(ii, ii) = resPos[ii]*resPos[ii]; }
+  for (int ii=0; ii<3; ii++) { covMInit(ii+3, ii+3) = pow(momInit[ii]*0.01,2);} // 1 %
 
-  bool localCoord=false;
 
   //set covariant matrix from Momentum and angle resolution
   double sigma_p0     = 0.001; ///   1 MeV
+  /*
   double sigma_angle0 = 0.1;   /// 100 mrad
-  //double sigma_p0     = 0.0001; ///   0.1 MeV
-  //double sigma_angle0 = 0.01;   /// 10 mrad
-
   TVector3 dirP    = momInit.Unit();
-  //TVector3 zaxis   = localCoord ? TVector3(0,0,1) : TVector3(1,0,0);
   TVector3 zaxis   = TVector3(1,0,0);
   TVector3 v_axis  = dirP.Cross(zaxis).Unit();
   TVector3 u_axis  = dirP.Cross(v_axis).Unit();
@@ -247,8 +245,9 @@ int IGenFitting::DoFit(IHoughTransform* hough){
   TMatrixD covrot(3, 3);
   covrot    = hrot*cov0;
   covrot   *= hrot.T();
-
+  
   for(int ii=0; ii<3; ii++) for(int jj=0; jj<3; jj++) covMInit[ii+3][jj+3] = covrot(ii, jj);
+  */
 
   rep->setPosMomCov(stateInit, posInit, momInit, covMInit);
 
@@ -256,8 +255,11 @@ int IGenFitting::DoFit(IHoughTransform* hough){
   TVectorD seedState(6);
   TMatrixDSym seedCov(6);
   rep->get6DStateCov(stateInit, seedState, seedCov);
-  fitTrack = new genfit::Track(rep, seedState, seedCov);
 
+  // remember original initial state
+  const genfit::StateOnPlane stateRefOrig(stateInit);
+
+  fitTrack = new genfit::Track(rep, seedState, seedCov);
   std::vector<genfit::TrackPoint*>     trackPoints; // each track point
   std::vector<genfit::AbsMeasurement*> mesHits;     // each measured hit
 
@@ -267,6 +269,8 @@ int IGenFitting::DoFit(IHoughTransform* hough){
   if(!fUseMCTruth){
 
     for (int i_hit=0; i_hit<fnCALCDCHit ; i_hit++){
+
+      //if (fWireLayerId[i_hit]<=1) continue;
       
       TVectorD wireMes(7);       /// Wire end0(x,y,z), end1(x,y,z), drift distance
       TMatrixDSym wireMatrix(7); /// Uncertainties for wireMes values
@@ -282,18 +286,29 @@ int IGenFitting::DoFit(IHoughTransform* hough){
       wireMes[6] = fDriftDist[i_hit];      
       trackPoints.push_back(new genfit::TrackPoint());
 
+
       if (fSmearing) wireMes[6] += gRandom->Gaus(0, fSigmaD); /// drift distance is smeared by fSigmaD
      
       for (int row = 0; row < 7; row++) {
 	for (int col = 0; col < 7; col++) {
-	  if (row != col) wireMatrix(row,col) = 0;
+	  if (row != col) wireMatrix(row,col) = 0.;
 	  if (row < 6)    wireMatrix(row,col) = std::pow(fSigmaWP,2);   /// Wire position uncertainties (temporary 10um)
+	  //if (row < 6)    wireMatrix(row,col) = 0.;
 	  else            wireMatrix(row,col) = std::pow(fSigmaD,2); /// Resolution of drift distance
 	}
       }
-      mesHits.push_back( new genfit::WireMeasurement(wireMes, wireMatrix, fWireId[i_hit], i_hit, trackPoints.at(i_hit)) );        
-      trackPoints.at(i_hit)->addRawMeasurement(mesHits.at(i_hit));
-      fitTrack->insertPoint(trackPoints.at(i_hit), nTotalHits++);  
+
+      mesHits.push_back( new genfit::WireMeasurement(wireMes, wireMatrix, fWireId[i_hit], nTotalHits, trackPoints.at(nTotalHits)) );        
+      trackPoints.at(nTotalHits)->addRawMeasurement(mesHits.at(nTotalHits));
+      fitTrack->insertPoint(trackPoints.at(nTotalHits-1), nTotalHits++);  
+
+      //mesHits.push_back( new genfit::WireMeasurement(wireMes, wireMatrix, fWireId[i_hit], i_hit, trackPoints.at(i_hit)) );        
+      //trackPoints.at(i_hit)->addRawMeasurement(mesHits.at(i_hit));
+      //fitTrack->insertPoint(trackPoints.at(i_hit), nTotalHits++);  
+
+      //genfit::WireMeasurement *measure = new genfit::WireMeasurement(wireMes, wireMatrix, fWireId[i_hit], i_hit, NULL);
+      //measure->setMaxDistance(1.2);
+      //fitTrack->insertMeasurement(measure);
     }    
   }
 
@@ -344,17 +359,17 @@ int IGenFitting::DoFit(IHoughTransform* hough){
     delete fitTrack;
     return 0;
   }
+  kalman->setDeltaPval(3e-3);
 
   /// Do the fitting
   try{
-    //if (fMethod=="DAF") kalman->processTrackWithRep(fitTrack, rep);
-    //else if (fMethod!="DAF") kalman->processTrack(fitTrack);
+    fitTrack->checkConsistency();
+    gGeoManager->ResetState();
     kalman->processTrack(fitTrack);
+    fitTrack->checkConsistency();
   }catch(genfit::Exception& e){e.what();}
 
   if (!fitTrack->getFitStatus(rep)->isFitConverged()) {
-    //if (fMethod=="DAF") kalman->processTrackWithRep(fitTrack, rep);
-    //else if (fMethod!="DAF") kalman->processTrack(fitTrack);
     kalman->processTrack(fitTrack);
   }
   
@@ -363,11 +378,10 @@ int IGenFitting::DoFit(IHoughTransform* hough){
     COMETNamedInfo("IGenFitter", "Fitting is failed...");
     std::cout << "Fitting is failed..." << std::endl;
     delete kalman;
-    //delete fitTrack;
     return 0;
   }
     
-  /*
+  
   if (fitTrack->getFitStatus(rep)->getChi2()<=0 ||
       (fitTrack->getFitStatus(rep)->getNdf()-2*nVirtualPlanes)<fMinNDF) {
     COMETNamedInfo("IGenFitter", "Fit result might be wrong... (chi2,ndf) = (" << 
@@ -378,39 +392,63 @@ int IGenFitting::DoFit(IHoughTransform* hough){
     //delete fitTrack;
     return 0;
   }
-  */
+  
 
   genfit::TrackPoint* tp = fitTrack->getPointWithMeasurementAndFitterInfo(0, rep);
   genfit::KalmanFittedStateOnPlane kfsop(*(static_cast<genfit::KalmanFitterInfo*>(tp->getFitterInfo(rep))->getBackwardUpdate()));
+  //genfit::KalmanFittedStateOnPlane kfsop(*(static_cast<genfit::KalmanFitterInfo*>(tp->getFitterInfo(rep))->getUpdate(1)));  
+
+  try{
+    rep->extrapolateToPlane(kfsop, stateRefOrig.getPlane());
+  }
+  catch(genfit::Exception& e){ 
+    std::cerr<<"Exception, next track"<<std::endl;
+    std::cerr << e.what();
+    delete kalman;
+    return 0;
+  }
+
+  const TVectorD& referenceState = stateRefOrig.getState();
   const TVectorD& state = kfsop.getState();
   const TMatrixDSym& cov = kfsop.getCov();
-  //fpFit = TMath::Abs(1./state[0]);
+  
+  fpFit = TMath::Abs(1./state[0]);
+  pVal = kalman->getPVal(fitTrack, rep);
+  hqopPu = (state[0]-referenceState[0]) / sqrt(cov[0][0]);
+  hupPu  = (state[1]-referenceState[1]) / sqrt(cov[1][1]);
+  hvpPu  = (state[2]-referenceState[2]) / sqrt(cov[2][2]);
+  huPu   = (state[3]-referenceState[3]) / sqrt(cov[3][3]);
+  hvPu   = (state[4]-referenceState[4]) / sqrt(cov[4][4]);
 
   fChi2 = fitTrack->getFitStatus(rep)->getChi2();
   fNdf = fitTrack->getFitStatus(rep)->getNdf();  
   fChi2Ndf = fChi2/fNdf;
 
+  /*
   if (fChi2Ndf<1 || fChi2Ndf>5) {
     std::cout << "Fit result might be wrong..." << std::endl;
     delete kalman;
     return 0;
   }
-
-
+  */
   delete kalman;
-  //delete fitTrack;
 
+  fxFit_vec = rep->getPos(kfsop);  
+  fpFit_vec = rep->getMom(kfsop)*1000;
+  fpFit = fpFit_vec.Mag();
+
+  /*
   const std::vector<genfit::TrackPoint*> points = fitTrack->getPoints();
   Int_t posStateIdx, dirStateIdx, momStateIdx;
   posStateIdx = dirStateIdx = momStateIdx = -1;
-  //Double_t tmpT = 0., tmpL = 0.;
   std::vector<Double_t> time;
   std::vector<Double_t> length;
   std::vector<Int_t> usedHit;
   TVector3    posOnPlane;
   TVector3    momOnPlane;
   TMatrixDSym covOnPlane(6);
-  
+  */
+  /*
   for (int i_hit = 0; i_hit < nTotalHits; i_hit++) {
     // get fitted status of fit track
     int hitId = (points.at(i_hit))->getRawMeasurement(0)->getHitId();
@@ -418,14 +456,14 @@ int IGenFitting::DoFit(IHoughTransform* hough){
 
     genfit::MeasuredStateOnPlane mop;
 
-    if (i_hit==0){
-    //if (i_hit==nTotalHits-1){
+    //if (i_hit==0){
+    if (i_hit==6){
       mop = fitTrack->getFittedState(i_hit,rep);
       mop.getPosMomCov(posOnPlane,momOnPlane,covOnPlane);
       fpFit  = momOnPlane.Mag();
     }
   }
-  
+*/  
     /*
     if (points.at(i_hit) != NULL) {
       mop = fitTrack->getFittedState(i_hit,rep);
@@ -456,3 +494,14 @@ int IGenFitting::DoFit(IHoughTransform* hough){
   return 1;
 }
 
+Double_t* IGenFitting::GetPullValue() { 
+  //Double_t* pointer;
+  static Double_t PullValue[5];
+  //pointer = PullValue;
+  PullValue[0]=hqopPu;
+  PullValue[1]=hupPu;
+  PullValue[2]=hvpPu;
+  PullValue[3]=huPu;
+  PullValue[4]=hvPu; 
+  return PullValue; 
+}

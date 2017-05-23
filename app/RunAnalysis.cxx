@@ -81,6 +81,13 @@ public:
 
     fTrdata->Branch("fFitSuccess", &fFitSuccess, "fFitSuccess/O");
     fTrdata->Branch("fpFit", &fpFit, "fpFit/D");
+    fTrdata->Branch("fpxFit", &fpxFit, "fpxFit/D");
+    fTrdata->Branch("fpyFit", &fpyFit, "fpyFit/D");
+    fTrdata->Branch("fpzFit", &fpzFit, "fpzFit/D");
+    fTrdata->Branch("fxFit", &fxFit, "fxFit/D");
+    fTrdata->Branch("fyFit", &fyFit, "fyFit/D");
+    fTrdata->Branch("fzFit", &fzFit, "fzFit/D");
+
     fTrdata->Branch("fChi2", &fChi2, "fChi2/D");
     fTrdata->Branch("fNdf", &fNdf, "fNdf/I");
     fTrdata->Branch("fChi2Ndf", &fChi2Ndf, "fChi2Ndf/D");
@@ -89,6 +96,13 @@ public:
     fTrdata->Branch("fpT_HT", &fpT_HT, "fpT_HT/D");
     fTrdata->Branch("fpT_Reseeded", &fpT_Reseeded, "fpT_Reseeded/D");
     fTrdata->Branch("fpT_Truth",&fpT_Truth, "fpT_Truth/D");
+
+    fTrdata->Branch("pVal",&pVal, "pVal/D");
+    fTrdata->Branch("hqopPu",&hqopPu, "hqopPu/D");
+    fTrdata->Branch("hupPu",&hupPu, "hupPu/D");
+    fTrdata->Branch("hvpPu",&hvpPu, "hvpPu/D");
+    fTrdata->Branch("huPu",&huPu, "huPu/D");
+    fTrdata->Branch("hvPu",&hvPu, "hvPu/D");
 
     // for Testing purpose
 
@@ -101,8 +115,8 @@ public:
     fTrdata->Branch("fCDCEnterPz", &fCDCEnterPz, "fCDCEnterPz/D");
 
     // Hough Transform Transverse Mom & Pos Initial Seed
-    fTrdata->Branch("fFitEnterY", &fFitEnterY, "fFitEnterY/D");
-    fTrdata->Branch("fFitEnterZ", &fFitEnterZ, "fFitEnterZ/D");
+    fTrdata->Branch("fFitEnterY",  &fFitEnterY, "fFitEnterY/D");
+    fTrdata->Branch("fFitEnterZ",  &fFitEnterZ, "fFitEnterZ/D");
     fTrdata->Branch("fFitEnterPy", &fFitEnterPy, "fFitEnterPy/D");
     fTrdata->Branch("fFitEnterPz", &fFitEnterPz, "fFitEnterPz/D");
 
@@ -266,12 +280,31 @@ public:
 	}
 	fFitSuccess=1;	
 	GenFitting->AddEvent(display);
-	fpFit=GenFitting->GetFittedMom(); fpFit *= 1e3;
+	fpFit=GenFitting->GetFittedMom();
+	TVector3 pFit_vec = GenFitting->GetFittedpVec();
+	TVector3 xFit_vec = GenFitting->GetFittedxVec();	
+	fpxFit = pFit_vec(0);  fpyFit = pFit_vec(1);   fpzFit = pFit_vec(2);
+	fxFit  = xFit_vec(0);  fyFit  = xFit_vec(1);   fzFit  = xFit_vec(2);
+
 	fChi2=GenFitting->GetChi2();
 	fNdf =GenFitting->GetNdf();
 	fChi2Ndf=GenFitting->GetChi2Ndf();
+	pVal    =GenFitting->GetpVal();
+	Double_t *pullVal=GenFitting->GetPullValue();
+	hqopPu = pullVal[0];
+	hupPu  = pullVal[1];
+        hvpPu  = *(pullVal+2);
+	huPu   = *(pullVal+3);
+	hvPu   = *(pullVal+4);
+
+	std::cout << "hqopPu: " << hqopPu << std::endl;
+	std::cout << "hupPu: " << hupPu << std::endl;
+	std::cout << "hvpPu: " << hvpPu << std::endl;
+	std::cout << "huPu: " << huPu << std::endl;
+	std::cout << "hvPu: " << hvPu << std::endl;
+
 	fpIni   =GenFitting->GetInitialMom();
-	fpEnter =GenFitting->GetCDCEntranceMom();
+	fpEnter =GenFitting->GetCDCEntranceMom();	
 
 	clock_gettime(CLOCK_MONOTONIC_RAW, &GENFITend); 
 	fAnalysisTime_GENFIT = (GENFITend.tv_sec - GENFITstart.tv_sec)*1000000 + (GENFITend.tv_nsec - GENFITstart.tv_nsec) / 1000;
@@ -341,6 +374,13 @@ private:
 
   Bool_t   fFitSuccess;
   Double_t fpFit;
+  Double_t fpxFit;
+  Double_t fpyFit;
+  Double_t fpzFit;
+  Double_t fxFit;
+  Double_t fyFit;
+  Double_t fzFit;
+
   Double_t fChi2;
   Int_t    fNdf;
   Double_t fChi2Ndf;
@@ -349,6 +389,13 @@ private:
   Double_t fpT_HT;
   Double_t fpT_Reseeded;
   Double_t fpT_Truth;
+
+  Double_t hqopPu;
+  Double_t pVal;
+  Double_t hupPu;
+  Double_t hvpPu;
+  Double_t huPu;
+  Double_t hvPu;
 
   Double_t fAnalysisTime_HT;     // Time in mircosecond unit
   Double_t fAnalysisTime_GENFIT;
@@ -366,6 +413,8 @@ private:
   Double_t fFitEnterPx;
   Double_t fFitEnterPy;
   Double_t fFitEnterPz;
+
+
 };
 
 int main(int argc, char **argv) {

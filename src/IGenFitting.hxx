@@ -62,9 +62,14 @@ public:
   int DoFit(IHoughTransform *hough);
 
   double GetFittedMom() { return fpFit; }
+  TVector3 GetFittedpVec() { return fpFit_vec;}
+  TVector3 GetFittedxVec() { return fxFit_vec;}
+
   double GetChi2() { return fChi2; }
   int GetNdf()  { return fNdf;  }
   double GetChi2Ndf() { return fChi2Ndf; }
+  double GetpVal()    { return pVal; }
+  Double_t* GetPullValue();
   double GetInitialMom() { return sqrt(pow(fGenTrPx,2)+pow(fGenTrPy,2)+pow(fGenTrPz,2)); }
   double GetCDCEntranceMom() { return sqrt(pow(fCDCEnterPx,2)+pow(fCDCEnterPy,2)+pow(fCDCEnterPz,2)); }
 
@@ -73,7 +78,11 @@ public:
 private:
   TTree   *fTree;
   Bool_t fUseBetheBloch; /// flag to turn on/off the BetheBloch  
+  Bool_t fUseNoiseBetheBloch;
+  Bool_t fUseNoiseCoulomb;
   Bool_t fUseBrems;      /// flag to turn on/off the Brems  
+  Bool_t fUseNoiseBrems;      /// flag to turn on/off the Brems  
+  Bool_t fUseNoEffects;
   std::string fMethod; /// fitting method  
   Int_t  fPID;           /// Input Particle ID in PDGEncoding to fit the track  
   UInt_t fMinIterations; /// minimum number of iterations  
@@ -103,6 +112,15 @@ private:
   double fChi2;
   int    fNdf;
   double fChi2Ndf;
+  TVector3 fxFit_vec;
+  TVector3 fpFit_vec;
+
+  Double_t hqopPu;
+  Double_t pVal;
+  Double_t hupPu;
+  Double_t hvpPu;
+  Double_t huPu;
+  Double_t hvPu;  
 
 };
 #endif

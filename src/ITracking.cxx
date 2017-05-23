@@ -127,7 +127,8 @@ void ITracking::LoadMCHits(COMET::IHandle<COMET::IHitSelection> hitHandle, COMET
 		
 	TVector3 hitPos;
 	Double_t hitT;
-	
+
+	std::cout << "Track Length: " << tmpSeg->GetTrackLength()*(1/unit::cm) << std::endl;
 	hitPos(0)=0.5 * (tmpSeg->GetStopX()*(1/unit::cm)+tmpSeg->GetStartX()*(1/unit::cm));
 	hitPos(1)=0.5 * (tmpSeg->GetStopY()*(1/unit::cm)+tmpSeg->GetStartY()*(1/unit::cm));
 	hitPos(2)=0.5 * (tmpSeg->GetStopZ()*(1/unit::cm)+tmpSeg->GetStartZ()*(1/unit::cm));
@@ -172,11 +173,16 @@ void ITracking::LoadMCHits(COMET::IHandle<COMET::IHitSelection> hitHandle, COMET
   if (hitHandle){
     COMET::IHitSelection *hits = GetPointer(hitHandle);
     for (COMET::IHitSelection::const_iterator hitSeg = hits->begin(); hitSeg != hits->end(); hitSeg++){
+
       /// Find SimG4 Hit contributors
       COMET::IMCHit *mcHit = dynamic_cast<COMET::IMCHit*>(GetPointer(*hitSeg));
       std::vector<COMET::IG4VHit*> hitContributors = mcHit->GetContributors();	
-      COMET::IG4HitSegment* g4Contributor = dynamic_cast<COMET::IG4HitSegment*>(hitContributors.at(0)); // Currently use only one contributor...
+      COMET::IG4HitSegment* g4Contributor = dynamic_cast<COMET::IG4HitSegment*>(hitContributors.at(0));// Currently use only one contributor...
       
+      /// continue if it is from Background (NEED TO BE FIXED!)
+      //std::vector <Int_t> trajContributors = g4Contributor->GetContributors();
+      //if (*trajContributors.begin()!=1 || trajContributors.size()!=1) continue;
+
       if ( HitMap.find(g4Contributor) == HitMap.end()){      // if NOT exist in map
 	std::vector<COMET::IMCHit*> HitVector; HitVector.push_back(mcHit);
 	HitMap.insert(std::make_pair(g4Contributor,HitVector));
@@ -225,11 +231,26 @@ void ITracking::LoadMCHits(COMET::IHandle<COMET::IHitSelection> hitHandle, COMET
     g4HitPos(0)=0.5 * (g4HitSeg->GetStopX()*(1/unit::cm)+g4HitSeg->GetStartX()*(1/unit::cm));
     g4HitPos(1)=0.5 * (g4HitSeg->GetStopY()*(1/unit::cm)+g4HitSeg->GetStartY()*(1/unit::cm));
     g4HitPos(2)=0.5 * (g4HitSeg->GetStopZ()*(1/unit::cm)+g4HitSeg->GetStartZ()*(1/unit::cm));
-    
+
+    // Estimate DOCA for Drift Distance
+    TVector3 g4HitEnd0;
+    g4HitEnd0(0) = g4HitSeg->GetStartX()*(1/unit::cm);
+    g4HitEnd0(1) = g4HitSeg->GetStartY()*(1/unit::cm);
+    g4HitEnd0(2) = g4HitSeg->GetStartZ()*(1/unit::cm);
+    TVector3 g4HitEnd1;
+    g4HitEnd1(0) = g4HitSeg->GetStopX()*(1/unit::cm);
+    g4HitEnd1(1) = g4HitSeg->GetStopY()*(1/unit::cm);
+    g4HitEnd1(2) = g4HitSeg->GetStopZ()*(1/unit::cm);
+    TVector3 WireEnd0 = COMET::IGeomInfo::Get().CDC().GetWireEnd0(wire);
+    TVector3 WireEnd1 = COMET::IGeomInfo::Get().CDC().GetWireEnd1(wire);
+  
+    fDriftDist[fnCALCDCHit]=GetDOCABetweenHitandWire(g4HitEnd0,g4HitEnd1,WireEnd0,WireEnd1);
+    /*
     TVector3 local;
     if (!COMET::IGeomInfo::Get().CDC().GetDistanceFromWire(g4HitPos, wire, local)) continue;
     fDriftDist[fnCALCDCHit]=hypot(local.x(),local.y());
-        
+    */
+    //std::cout << local.x() << "  " << local.y() << "  " << local.z() << std::endl;    
     //std::cout << fDriftDist[fnCALCDCHit] << std::endl;
     fnCALCDCHit++;
   }
@@ -389,6 +410,40 @@ TVector3 GetPOCAofTwoWires(TVector3 wireEnd0_lo, TVector3 wireEnd1_lo, TVector3 
   
   return (pC+qC)*0.5;
 }
+
+Double_t GetDOCABetweenHitandWire(TVector3 hitEnd0, TVector3 hitEnd1, TVector3 wireEnd0, TVector3 wireEnd1){
+  TVector3 u = hitEnd1-hitEnd0;
+  TVector3 v = wireEnd1-wireEnd0;
+  TVector3 w = hitEnd0-wireEnd0;
+  double a,b,c,d,e,s,t;
+  a = u * u; 
+  b = u * v;
+  c = v * v;
+  d = u * w;
+  e = v * w;
+  
+  s = (b*e-c*d)/(a*c-b*b);
+  t = (a*e-b*d)/(a*c-b*b);
+
+  double DOCA;
+  DOCA = (w+s*u-t*v).Mag();
+  
+  if (s<0) {
+    TVector3 f = hitEnd0-wireEnd0;
+    TVector3 DOCAvec = f-(f*v)/(pow(v.Mag(),2))*v;
+    DOCA = DOCAvec.Mag();
+  }
+  else if (s>1) {
+    TVector3 f = hitEnd1-wireEnd0;
+    TVector3 DOCAvec = f-(f*v)/(pow(v.Mag(),2))*v;
+    DOCA = DOCAvec.Mag();
+  } 
+    
+  //std::cout << "DOCA: " << DOCA << std::endl;
+ 
+  return  DOCA;
+}
+
 
 TVector3 GetVectorCrossingCenter(TVector3 wireEnd0_lo, TVector3 wireEnd1_lo, TVector3 wireEnd0_up, TVector3 wireEnd1_up, TVector3 POCA){
   TVector3 u = wireEnd1_lo-wireEnd0_lo;

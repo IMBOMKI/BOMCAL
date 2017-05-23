@@ -1325,7 +1325,6 @@ std::pair<TVector3, TVector3> getEnterXYPairs(Double_t x1,Double_t y1,Double_t r
   x=0.5*x1+0.5*(pow(r1,2)-pow(r2,2))/pow(R,2)*(-x1)+0.5*(-y1)*SqTerm;
   y=0.5*y1+0.5*(pow(r1,2)-pow(r2,2))/pow(R,2)*(-y1)+0.5* (x1)*SqTerm;
 
-  std::cout << x << "  "<< y << std::endl;
   cross = x*y1-y*x1;
   if (cross<=0)     XY_domain1=TVector3(x,y,0.);
   else if (cross>0) XY_domain2=TVector3(x,y,0.);
@@ -1334,7 +1333,6 @@ std::pair<TVector3, TVector3> getEnterXYPairs(Double_t x1,Double_t y1,Double_t r
   y=0.5*y1+0.5*(pow(r1,2)-pow(r2,2))/pow(R,2)*(-y1)-0.5* (x1)*SqTerm;
   cross = x*y1-y*x1;
 
-  std::cout << x << "  "<< y << std::endl;
   if (cross<=0)     XY_domain1=TVector3(x,y,0.);
   else if (cross>0) XY_domain2=TVector3(x,y,0.);
 
