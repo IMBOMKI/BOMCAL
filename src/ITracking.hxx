@@ -66,7 +66,10 @@ protected:
   double fCDCHitZ[10000];
   double fCDCHitT[10000];
   double fCDCEDep[10000];
+  double fPrimary[10000];
 
+  Bool_t fUseMode1;
+  Bool_t fUseMode2;
   int    fnCALCDCHit;
   double fDriftDist[10000];
   int    fCDCCharge[10000];

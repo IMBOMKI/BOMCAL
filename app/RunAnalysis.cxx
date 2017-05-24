@@ -37,12 +37,13 @@ public:
     fFileMode("recreate"), 
     fOutputDir("../anal"),
 
-    fEventsNumForAnaly(1000),
+    fEventsNumForAnaly(10000),
     fCoincidenceCount(0),
     fSingleTurnCount(0),
     fMultiTurnCount(0),
     fSaveHoughTransform(0),
-    fMaxGenFitTry(5)
+    fMaxGenFitTry(5),    
+    hasCalledFieldMap(0)
   {}
   virtual ~TMyEventLoop() {}
  
@@ -60,6 +61,7 @@ public:
   }
 
   virtual void Initialize(void) {
+
     std::cout << "Initialize" << std::endl;
     display = genfit::EventDisplay::getInstance();
 
@@ -265,6 +267,8 @@ public:
 	GenFitting->LoadMCHits(CDCHits_DetResp, Trajectories, CDCHits);       
 	//GenFitting->ShuffleMCHits(); // This makes fitting suck...
 	GenFitting->LoadHitsAfterHT(CDCHits_DetResp, HoughTransform);
+	GenFitting->LoadFieldMap(hasCalledFieldMap);
+	hasCalledFieldMap=1;
 	Int_t nTry=0;	
 	
 	clock_gettime(CLOCK_MONOTONIC_RAW, &GENFITstart); 
@@ -359,6 +363,8 @@ private:
 
   /*** GenFitting ***/
   genfit::EventDisplay* display;
+  genfit::FieldManager* fieldManager;
+
   Int_t fMaxGenFitTry;
   //TVector3 fFittedMom;
 
@@ -414,7 +420,7 @@ private:
   Double_t fFitEnterPy;
   Double_t fFitEnterPz;
 
-
+  bool     hasCalledFieldMap;
 };
 
 int main(int argc, char **argv) {

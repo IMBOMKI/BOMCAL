@@ -38,7 +38,9 @@
 ITracking::ITracking(const char* name = "ITracking", const char* title="tracking")
 :fnCALCDCHit(0), 
   fnCDCHit(0),
- fTurnNumber(0)
+ fTurnNumber(0),
+  fUseMode1(true),
+  fUseMode2(false)
 
 {;}
 ITracking::~ITracking(){;}
@@ -60,6 +62,8 @@ TGeoNode* GetNode(TVector3 position) {
 }
 
 void ITracking::LoadMCHits(COMET::IHandle<COMET::IHitSelection> hitHandle, COMET::IHandle<COMET::IG4TrajectoryContainer> trajectories, COMET::IHandle<COMET::IG4HitContainer> cdcHits){
+
+  memset(fPrimary,0,sizeof(fPrimary));
 
   TGeoManager* geom = COMET::IOADatabase::Get().Geometry();
   COMET::ICDCWireManager* WireManager = new COMET::ICDCWireManager();
@@ -124,11 +128,14 @@ void ITracking::LoadMCHits(COMET::IHandle<COMET::IHitSelection> hitHandle, COMET
 
 	COMET::IHandle<COMET::IG4Trajectory>  trajectory = TrajCont->GetTrajectory(tmpSeg->GetPrimaryId());
 	std::vector <Int_t> trajContributors = tmpSeg->GetContributors();
+
+	//for (Int_t i=0; i<trajContributors.size() ; i++) std::cout<< trajContributors.at(i) << "  ";
+	//std::cout << std::endl;
 		
 	TVector3 hitPos;
 	Double_t hitT;
 
-	std::cout << "Track Length: " << tmpSeg->GetTrackLength()*(1/unit::cm) << std::endl;
+	//std::cout << "Track Length: " << tmpSeg->GetTrackLength()*(1/unit::cm) << std::endl;
 	hitPos(0)=0.5 * (tmpSeg->GetStopX()*(1/unit::cm)+tmpSeg->GetStartX()*(1/unit::cm));
 	hitPos(1)=0.5 * (tmpSeg->GetStopY()*(1/unit::cm)+tmpSeg->GetStartY()*(1/unit::cm));
 	hitPos(2)=0.5 * (tmpSeg->GetStopZ()*(1/unit::cm)+tmpSeg->GetStartZ()*(1/unit::cm));
@@ -145,6 +152,7 @@ void ITracking::LoadMCHits(COMET::IHandle<COMET::IHitSelection> hitHandle, COMET
 	  fCDCEDep[fnCDCHit]=tmpSeg->GetEnergyDeposit();
 	  	  
 	  if (*trajContributors.begin()==1 && trajContributors.size()==1){ // If it is Primary (Signal)
+	    fPrimary[fnCDCHit]=1;
 	    if (CDCHitGeometry.back() != geoName){
 	      CDCHitGeometry.push_back(geoName);
 	      if (geoName=="CDCSenseLayer_0_0"){
@@ -165,97 +173,158 @@ void ITracking::LoadMCHits(COMET::IHandle<COMET::IHitSelection> hitHandle, COMET
   fTurnNumber=NumOfCDC_1/2;
   
 
+  if (fUseMode1){
   
-  std::map <COMET::IG4HitSegment*, std::vector<COMET::IMCHit*> > HitMap;
-  std::vector <COMET::IG4HitSegment*> g4HitOrder;
-  std::vector <int> wireIdList;
-  
-  if (hitHandle){
-    COMET::IHitSelection *hits = GetPointer(hitHandle);
-    for (COMET::IHitSelection::const_iterator hitSeg = hits->begin(); hitSeg != hits->end(); hitSeg++){
-
-      /// Find SimG4 Hit contributors
-      COMET::IMCHit *mcHit = dynamic_cast<COMET::IMCHit*>(GetPointer(*hitSeg));
-      std::vector<COMET::IG4VHit*> hitContributors = mcHit->GetContributors();	
-      COMET::IG4HitSegment* g4Contributor = dynamic_cast<COMET::IG4HitSegment*>(hitContributors.at(0));// Currently use only one contributor...
-      
-      /// continue if it is from Background (NEED TO BE FIXED!)
-      //std::vector <Int_t> trajContributors = g4Contributor->GetContributors();
-      //if (*trajContributors.begin()!=1 || trajContributors.size()!=1) continue;
-
-      if ( HitMap.find(g4Contributor) == HitMap.end()){      // if NOT exist in map
-	std::vector<COMET::IMCHit*> HitVector; HitVector.push_back(mcHit);
-	HitMap.insert(std::make_pair(g4Contributor,HitVector));
-	g4HitOrder.push_back(g4Contributor);
+    std::map <COMET::IG4HitSegment*, std::vector<COMET::IMCHit*> > HitMap;
+    std::vector <COMET::IG4HitSegment*> g4HitOrder;
+    std::vector <int> wireIdList;
+    
+    if (hitHandle){
+      COMET::IHitSelection *hits = GetPointer(hitHandle);
+      for (COMET::IHitSelection::const_iterator hitSeg = hits->begin(); hitSeg != hits->end(); hitSeg++){
+	
+	/// Find SimG4 Hit contributors
+	COMET::IMCHit *mcHit = dynamic_cast<COMET::IMCHit*>(GetPointer(*hitSeg));
+	std::vector<COMET::IG4VHit*> hitContributors = mcHit->GetContributors();	
+	COMET::IG4HitSegment* g4Contributor = dynamic_cast<COMET::IG4HitSegment*>(hitContributors.at(0));// Currently use only one contributor...
+	
+	/// continue if it is from Background (NEED TO BE FIXED!)
+	//std::vector <Int_t> trajContributors = g4Contributor->GetContributors();
+	//if (*trajContributors.begin()!=1 || trajContributors.size()!=1) continue;
+	
+	if ( HitMap.find(g4Contributor) == HitMap.end()){      // if NOT exist in map
+	  std::vector<COMET::IMCHit*> HitVector; HitVector.push_back(mcHit);
+	  HitMap.insert(std::make_pair(g4Contributor,HitVector));
+	  g4HitOrder.push_back(g4Contributor);
+	}
+	
+	else if ( HitMap.find(g4Contributor) != HitMap.end()){ // if exist in map
+	  HitMap[g4Contributor].push_back(mcHit);
+	  //std::cout << HitMap[g4Contributor].size() << std::endl;
+	}
       }
+    }
+    
+    int idOverlap=0;
+    
+    for (int i_hit=0 ; i_hit<g4HitOrder.size(); i_hit++){
       
-      else if ( HitMap.find(g4Contributor) != HitMap.end()){ // if exist in map
-	HitMap[g4Contributor].push_back(mcHit);
-	//std::cout << HitMap[g4Contributor].size() << std::endl;
+      COMET::IG4HitSegment* g4HitSeg = g4HitOrder.at(i_hit);
+      std::vector<COMET::IMCHit*> MCHitVector = HitMap[g4HitSeg];
+      
+      TVectorD wireMes(7);	
+      
+      COMET::IGeometryId geomId = MCHitVector[0]->GetGeomId();
+      int wire = COMET::IGeomInfo::Get().CDC().GeomIdToWire(geomId);
+      
+      if (std::find(wireIdList.begin(), wireIdList.end(), wire) != wireIdList.end() ) {
+	idOverlap++;
+	continue;      
       }
+      wireIdList.push_back(wire);
+      
+      fCDCCharge[fnCALCDCHit]    = MCHitVector.size();    
+      fWireEnd0X[fnCALCDCHit]    = COMET::IGeomInfo::Get().CDC().GetWireEnd0(wire).X();
+      fWireEnd0Y[fnCALCDCHit]    = COMET::IGeomInfo::Get().CDC().GetWireEnd0(wire).Y();
+      fWireEnd0Z[fnCALCDCHit]    = COMET::IGeomInfo::Get().CDC().GetWireEnd0(wire).Z();
+      fWireEnd1X[fnCALCDCHit]    = COMET::IGeomInfo::Get().CDC().GetWireEnd1(wire).X();
+      fWireEnd1Y[fnCALCDCHit]    = COMET::IGeomInfo::Get().CDC().GetWireEnd1(wire).Y();
+      fWireEnd1Z[fnCALCDCHit]    = COMET::IGeomInfo::Get().CDC().GetWireEnd1(wire).Z();
+      fWireId[fnCALCDCHit]       = wire;	  
+      int layer = COMET::IGeomInfo::Get().CDC().GetLayer(wire);
+      
+      fWireLayerId[fnCALCDCHit]  = layer;
+      if (fMaxWireLayerId<layer) fMaxWireLayerId = layer;
+      
+      TVector3 g4HitPos;
+      g4HitPos(0)=0.5 * (g4HitSeg->GetStopX()*(1/unit::cm)+g4HitSeg->GetStartX()*(1/unit::cm));
+      g4HitPos(1)=0.5 * (g4HitSeg->GetStopY()*(1/unit::cm)+g4HitSeg->GetStartY()*(1/unit::cm));
+      g4HitPos(2)=0.5 * (g4HitSeg->GetStopZ()*(1/unit::cm)+g4HitSeg->GetStartZ()*(1/unit::cm));
+      
+      // Estimate DOCA for Drift Distance
+      TVector3 g4HitEnd0;
+      g4HitEnd0(0) = g4HitSeg->GetStartX()*(1/unit::cm);
+      g4HitEnd0(1) = g4HitSeg->GetStartY()*(1/unit::cm);
+      g4HitEnd0(2) = g4HitSeg->GetStartZ()*(1/unit::cm);
+      TVector3 g4HitEnd1;
+      g4HitEnd1(0) = g4HitSeg->GetStopX()*(1/unit::cm);
+      g4HitEnd1(1) = g4HitSeg->GetStopY()*(1/unit::cm);
+      g4HitEnd1(2) = g4HitSeg->GetStopZ()*(1/unit::cm);
+      TVector3 WireEnd0 = COMET::IGeomInfo::Get().CDC().GetWireEnd0(wire);
+      TVector3 WireEnd1 = COMET::IGeomInfo::Get().CDC().GetWireEnd1(wire);
+      
+      fDriftDist[fnCALCDCHit]=GetDOCABetweenHitandWire(g4HitEnd0,g4HitEnd1,WireEnd0,WireEnd1);
+      /*
+	TVector3 local;
+	if (!COMET::IGeomInfo::Get().CDC().GetDistanceFromWire(g4HitPos, wire, local)) continue;
+	fDriftDist[fnCALCDCHit]=hypot(local.x(),local.y());
+      */
+      //std::cout << local.x() << "  " << local.y() << "  " << local.z() << std::endl;    
+      //std::cout << fDriftDist[fnCALCDCHit] << std::endl;
+      fnCALCDCHit++;
     }
   }
   
-  int idOverlap=0;
+  if (fUseMode2){
 
-  for (int i_hit=0 ; i_hit<g4HitOrder.size(); i_hit++){
-    
-    COMET::IG4HitSegment* g4HitSeg = g4HitOrder.at(i_hit);
-    std::vector<COMET::IMCHit*> MCHitVector = HitMap[g4HitSeg];
+    std::vector <int> wireIdList;
 
-    TVectorD wireMes(7);	
-    
-    COMET::IGeometryId geomId = MCHitVector[0]->GetGeomId();
-    int wire = COMET::IGeomInfo::Get().CDC().GeomIdToWire(geomId);
-    
-    if (std::find(wireIdList.begin(), wireIdList.end(), wire) != wireIdList.end() ) {
-      idOverlap++;
-      continue;      
+    if (cdcHits){
+      for(COMET::IG4HitContainer::const_iterator hitSeg = cdcHits->begin(); hitSeg != cdcHits->end(); ++hitSeg) {
+	COMET::IG4HitSegment* tmpSeg = dynamic_cast<COMET::IG4HitSegment*>(*hitSeg);      
+	if (tmpSeg){
+	  
+	  COMET::IHandle<COMET::IG4Trajectory>  trajectory = TrajCont->GetTrajectory(tmpSeg->GetPrimaryId());
+	  std::vector <Int_t> trajContributors = tmpSeg->GetContributors();
+	  
+	  TVector3 hitPos;
+	  Double_t hitT;
+	  
+	  //std::cout << "Track Length: " << tmpSeg->GetTrackLength()*(1/unit::cm) << std::endl;
+	  hitPos(0)=0.5 * (tmpSeg->GetStopX()*(1/unit::cm)+tmpSeg->GetStartX()*(1/unit::cm));
+	  hitPos(1)=0.5 * (tmpSeg->GetStopY()*(1/unit::cm)+tmpSeg->GetStartY()*(1/unit::cm));
+	  hitPos(2)=0.5 * (tmpSeg->GetStopZ()*(1/unit::cm)+tmpSeg->GetStartZ()*(1/unit::cm));
+	  hitT = 0.5 * (tmpSeg->GetStopT()*(1/unit::ns)+tmpSeg->GetStartT()*(1/unit::ns));
+	  
+	  TGeoNode* volume = GetNode(hitPos);
+	  TString geoName = TString(volume->GetName());
+	  
+	  if (geoName.Contains("CDCSenseLayer")){
+	    
+	    if (*trajContributors.begin()==1 && trajContributors.size()==1){ // If it is Primary (Signal)
+	      
+	      int wire = -1;
+	      TVector3 local;
+	      if (!COMET::IGeomInfo::Get().CDC().GlobalPositionToChannel(hitPos, wire)) continue;
+	      if (!COMET::IGeomInfo::Get().CDC().GetDistanceFromWire(hitPos, wire, local))  continue; 
+	      if (std::find(wireIdList.begin(), wireIdList.end(), wire) != wireIdList.end() )  continue; 	     
+	      wireIdList.push_back(wire);
+	      fCDCCharge[fnCALCDCHit]    = 1;
+	      fWireEnd0X[fnCALCDCHit]    = COMET::IGeomInfo::Get().CDC().GetWireEnd0(wire).X();
+	      fWireEnd0Y[fnCALCDCHit]    = COMET::IGeomInfo::Get().CDC().GetWireEnd0(wire).Y();
+	      fWireEnd0Z[fnCALCDCHit]    = COMET::IGeomInfo::Get().CDC().GetWireEnd0(wire).Z();
+	      fWireEnd1X[fnCALCDCHit]    = COMET::IGeomInfo::Get().CDC().GetWireEnd1(wire).X();
+	      fWireEnd1Y[fnCALCDCHit]    = COMET::IGeomInfo::Get().CDC().GetWireEnd1(wire).Y();
+	      fWireEnd1Z[fnCALCDCHit]    = COMET::IGeomInfo::Get().CDC().GetWireEnd1(wire).Z();
+	      fWireId[fnCALCDCHit]       = wire;	  
+	      Int_t layer = COMET::IGeomInfo::Get().CDC().GetLayer(wire);	    
+	      
+	      fWireLayerId[fnCALCDCHit]  = layer;
+	      if (fMaxWireLayerId<layer) fMaxWireLayerId = layer;
+
+	      fDriftDist[fnCALCDCHit]=hypot(local.x(),local.y());	   
+	      
+	      fnCALCDCHit++;
+	    }	  
+	  }	  	       		  
+	}	      
+      }
     }
-    wireIdList.push_back(wire);
-
-    fCDCCharge[fnCALCDCHit]    = MCHitVector.size();    
-    fWireEnd0X[fnCALCDCHit]    = COMET::IGeomInfo::Get().CDC().GetWireEnd0(wire).X();
-    fWireEnd0Y[fnCALCDCHit]    = COMET::IGeomInfo::Get().CDC().GetWireEnd0(wire).Y();
-    fWireEnd0Z[fnCALCDCHit]    = COMET::IGeomInfo::Get().CDC().GetWireEnd0(wire).Z();
-    fWireEnd1X[fnCALCDCHit]    = COMET::IGeomInfo::Get().CDC().GetWireEnd1(wire).X();
-    fWireEnd1Y[fnCALCDCHit]    = COMET::IGeomInfo::Get().CDC().GetWireEnd1(wire).Y();
-    fWireEnd1Z[fnCALCDCHit]    = COMET::IGeomInfo::Get().CDC().GetWireEnd1(wire).Z();
-    fWireId[fnCALCDCHit]       = wire;	  
-    int layer = COMET::IGeomInfo::Get().CDC().GetLayer(wire);
-
-    fWireLayerId[fnCALCDCHit]  = layer;
-    if (fMaxWireLayerId<layer) fMaxWireLayerId = layer;
-    
-    TVector3 g4HitPos;
-    g4HitPos(0)=0.5 * (g4HitSeg->GetStopX()*(1/unit::cm)+g4HitSeg->GetStartX()*(1/unit::cm));
-    g4HitPos(1)=0.5 * (g4HitSeg->GetStopY()*(1/unit::cm)+g4HitSeg->GetStartY()*(1/unit::cm));
-    g4HitPos(2)=0.5 * (g4HitSeg->GetStopZ()*(1/unit::cm)+g4HitSeg->GetStartZ()*(1/unit::cm));
-
-    // Estimate DOCA for Drift Distance
-    TVector3 g4HitEnd0;
-    g4HitEnd0(0) = g4HitSeg->GetStartX()*(1/unit::cm);
-    g4HitEnd0(1) = g4HitSeg->GetStartY()*(1/unit::cm);
-    g4HitEnd0(2) = g4HitSeg->GetStartZ()*(1/unit::cm);
-    TVector3 g4HitEnd1;
-    g4HitEnd1(0) = g4HitSeg->GetStopX()*(1/unit::cm);
-    g4HitEnd1(1) = g4HitSeg->GetStopY()*(1/unit::cm);
-    g4HitEnd1(2) = g4HitSeg->GetStopZ()*(1/unit::cm);
-    TVector3 WireEnd0 = COMET::IGeomInfo::Get().CDC().GetWireEnd0(wire);
-    TVector3 WireEnd1 = COMET::IGeomInfo::Get().CDC().GetWireEnd1(wire);
-  
-    fDriftDist[fnCALCDCHit]=GetDOCABetweenHitandWire(g4HitEnd0,g4HitEnd1,WireEnd0,WireEnd1);
-    /*
-    TVector3 local;
-    if (!COMET::IGeomInfo::Get().CDC().GetDistanceFromWire(g4HitPos, wire, local)) continue;
-    fDriftDist[fnCALCDCHit]=hypot(local.x(),local.y());
-    */
-    //std::cout << local.x() << "  " << local.y() << "  " << local.z() << std::endl;    
-    //std::cout << fDriftDist[fnCALCDCHit] << std::endl;
-    fnCALCDCHit++;
   }
 
-  std::cout << "id Overlap: " << idOverlap << std::endl;
+
+  
+  //std::cout << "id Overlap: " << idOverlap << std::endl;
   
   /*
   
